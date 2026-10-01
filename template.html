@@ -1,0 +1,625 @@
+<title>資訊保護生命週期</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: 一張 1280×720 的投影舞台等比縮放置中；左側 Q 版講師，右側為逐步揭露的內容，底部為同步字幕。
+   單一視覺世界（深色講堂襯底 + 淺色投影片），刻意不隨主題切換。 */
+:root {
+  --surround: #0d1830;
+  --surround-2: #15244a;
+  --paper: #f4f7fb;
+  --ink: #1a2643;
+  --muted: #5a6784;
+  --line: #d3dbe8;
+  --band: #4472c4;
+  --ring: #9fcf88;
+  --ring-deep: #5c9a42;
+  --ops: #2c5cb5;
+  --ops-bg: #e6edfb;
+  --audit: #0e7c84;
+  --audit-bg: #def1f1;
+  --fault: #c4442d;
+  --fault-bg: #fbe8e3;
+  --hl: #ffcf3f;
+  --white: #ffffff;
+  --sub-bg: rgba(13, 24, 48, .9);
+  --sub-fg: #f4f7fb;
+  --display: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "WenQuanYi Zen Hei", sans-serif;
+  --body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "WenQuanYi Zen Hei", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 50% 30%, var(--surround-2), var(--surround) 70%);
+  background-color: var(--surround);
+  color: var(--sub-fg);
+  font-family: var(--body);
+  overflow: hidden;
+}
+.app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding-inline: 16px; padding-block: 12px; box-sizing: border-box; }
+.viewport { position: relative; width: 100%; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.stage-wrap { position: relative; }
+#stage {
+  position: absolute; left: 0; top: 0; width: 1280px; height: 720px;
+  transform-origin: 0 0; background: var(--paper); color: var(--ink);
+  border-radius: 10px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+}
+body.record .app { padding: 0; }
+body.record #stage { border-radius: 0; box-shadow: none; }
+#curtain { position: fixed; inset: 0; background: #000; z-index: 99; }
+body.record .dock, body.record .start-btn { display: none !important; }
+
+/* ── top bar ── */
+.topbar { position: absolute; left: 0; right: 0; top: 0; height: 86px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px 0 36px; border-bottom: 1px solid var(--line); background: var(--white); }
+.eyebrow { font: 700 13px/1 var(--mono); letter-spacing: .14em; color: var(--band); text-transform: uppercase; }
+.topbar h1 { margin: 8px 0 0; font: 900 30px/1.1 var(--display); letter-spacing: .02em; text-wrap: balance; }
+.rail { display: flex; align-items: center; gap: 0; }
+.rail .node { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 54px; font: 500 12px/1 var(--body); color: var(--muted); transition: color .4s; }
+.rail .dot { width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--line); background: var(--white); transition: all .4s; }
+.rail .bar { width: 14px; height: 4px; background: var(--line); margin-bottom: 17px; }
+.rail .node.on { color: var(--ink); font-weight: 700; }
+.rail .node.on .dot { border-color: var(--ring-deep); background: var(--ring); transform: scale(1.25); box-shadow: 0 0 0 4px rgba(159, 207, 136, .35); }
+#stage[data-type="cover"] .topbar { display: none; }
+
+/* ── content ── */
+#content { position: absolute; left: 252px; right: 30px; top: 100px; bottom: 96px; }
+#stage[data-type="cover"] #content { left: 0; right: 0; top: 0; bottom: 78px; }
+
+/* ── subtitles ── */
+.subs { position: absolute; left: 0; right: 0; bottom: 0; height: 80px; background: var(--sub-bg); color: var(--sub-fg); display: flex; align-items: center; gap: 18px; padding: 0 34px 0 252px; }
+.subs .who { position: absolute; left: 26px; top: 50%; transform: translateY(-50%); font: 700 13px/1.3 var(--mono); color: var(--ring); letter-spacing: .08em; }
+.subs .who small { display: block; font: 500 12px/1.3 var(--body); color: #b9c4dc; letter-spacing: 0; }
+#subText { font: 500 22px/1.45 var(--body); letter-spacing: .02em; text-wrap: balance; transition: opacity .2s; }
+.subs.off #subText { opacity: 0; }
+
+/* ── Allan ── */
+.allan { position: absolute; left: 14px; bottom: 76px; width: 226px; height: 308px; transition: all .8s cubic-bezier(.2, .8, .2, 1); z-index: 5; }
+#stage[data-type="cover"] .allan { left: 70px; bottom: 96px; width: 340px; height: 463px; }
+.allan svg { width: 100%; height: 100%; overflow: visible; }
+.allan #head { animation: bob 2.6s ease-in-out infinite; transform-box: view-box; }
+.allan.talking #head { animation: nod .5s ease-in-out infinite; }
+.allan #eyes { transform-box: fill-box; transform-origin: center; animation: blink 4.2s infinite; }
+.allan #armR { transform-box: view-box; transform-origin: 152px 186px; transition: transform .45s cubic-bezier(.3, 1.4, .5, 1); }
+.allan.point #armR { transform: rotate(-78deg); }
+.allan.wave #armR { animation: wave .7s ease-in-out infinite; }
+.allan #mouthOpen { transform-box: fill-box; transform-origin: 50% 0; }
+.bubble { position: absolute; left: 330px; top: 70px; background: var(--white); border: 3px solid var(--ink); border-radius: 22px; padding: 12px 20px; font: 900 26px/1.2 var(--display); color: var(--ink); opacity: 0; transform: scale(.6); transform-origin: 0 100%; transition: all .4s cubic-bezier(.3, 1.5, .5, 1); }
+.bubble::after { content: ""; position: absolute; left: 22px; bottom: -16px; border: 9px solid transparent; border-top-color: var(--ink); border-left-color: var(--ink); }
+#stage[data-type="cover"] .bubble.show { opacity: 1; transform: none; }
+#stage:not([data-type="cover"]) .bubble { display: none; }
+@keyframes bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+@keyframes nod { 0%, 100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(1.5px) rotate(.8deg) } }
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1) } 95% { transform: scaleY(.08) } }
+@keyframes wave { 0%, 100% { transform: rotate(-150deg) } 50% { transform: rotate(-118deg) } }
+
+/* ── cover ── */
+.cover { position: absolute; inset: 0; background:
+  linear-gradient(90deg, rgba(68, 114, 196, .07) 1px, transparent 1px) 0 0 / 40px 40px,
+  linear-gradient(rgba(68, 114, 196, .07) 1px, transparent 1px) 0 0 / 40px 40px, var(--paper); }
+.cover .txt { position: absolute; left: 470px; right: 60px; top: 120px; }
+.cover .txt .eyebrow { font-size: 15px; }
+.cover h2 { margin: 18px 0 10px; font: 900 76px/1.05 var(--display); letter-spacing: .03em; color: var(--ink); }
+.cover h2 span { color: var(--band); }
+.cover .sub { font: 500 21px/1.5 var(--body); color: var(--muted); margin: 0 0 30px; }
+.facets { display: flex; gap: 12px; flex-wrap: wrap; }
+.facet { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; font: 700 18px/1 var(--body); }
+.facet svg { width: 20px; height: 20px; }
+.facet.ops { background: var(--ops-bg); color: var(--ops); }
+.facet.audit { background: var(--audit-bg); color: var(--audit); }
+.facet.faults { background: var(--fault-bg); color: var(--fault); }
+.cover .loop { position: absolute; left: 470px; right: 60px; bottom: 40px; display: flex; align-items: center; gap: 10px; font: 700 16px/1 var(--body); color: var(--ink); }
+.cover .loop i { flex: 1; height: 8px; background: var(--band); border-radius: 4px; }
+.cover .loop b { width: 62px; height: 62px; border-radius: 50%; border: 6px solid var(--ring); background: var(--white); display: grid; place-items: center; font-size: 16px; }
+.start-btn { margin-top: 34px; display: inline-flex; align-items: center; gap: 12px; padding: 16px 30px; border: 0; border-radius: 999px; background: var(--ink); color: var(--white); font: 900 22px/1 var(--display); cursor: pointer; box-shadow: 0 8px 0 #0a1226; transition: transform .1s, box-shadow .1s; }
+.start-btn:hover { background: #24345c; }
+.start-btn:active { transform: translateY(4px); box-shadow: 0 4px 0 #0a1226; }
+.start-btn:focus-visible { outline: 4px solid var(--hl); outline-offset: 3px; }
+.start-btn svg { width: 22px; height: 22px; }
+
+/* ── control table ── */
+.ctable { height: 100%; display: grid; grid-template-columns: 172px repeat(3, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: 1fr; gap: 10px; }
+.chead { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font: 900 17px/1 var(--display); color: var(--white); }
+.chead svg { width: 20px; height: 20px; flex: none; }
+.chead.blank { background: transparent; }
+.chead.ops { background: var(--ops); }
+.chead.audit { background: var(--audit); }
+.chead.faults { background: var(--fault); }
+.cid { display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--white); border: 2px solid var(--line); transition: border-color .4s, box-shadow .4s; min-width: 0; }
+.cid .num { font: 700 30px/1 var(--mono); color: var(--band); }
+.cid .nm { font: 900 18px/1.3 var(--display); color: var(--ink); text-wrap: balance; }
+.cid.live { border-color: var(--ring-deep); box-shadow: 0 0 0 4px rgba(159, 207, 136, .35); }
+.cell { position: relative; border-radius: 10px; padding: 12px 14px 12px 12px; min-width: 0; transition: opacity .5s, transform .5s cubic-bezier(.2, .9, .3, 1.2), box-shadow .4s, filter .5s; }
+.cell.ops { background: var(--ops-bg); }
+.cell.audit { background: var(--audit-bg); }
+.cell.faults { background: var(--fault-bg); }
+.cell ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.cell li { position: relative; padding-left: 16px; font: 500 15.5px/1.5 var(--body); color: var(--ink); }
+.cell li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px; border-radius: 2px; }
+.cell.ops li::before { background: var(--ops); }
+.cell.audit li::before { background: var(--audit); }
+.cell.faults li::before { background: var(--fault); transform: rotate(45deg); }
+.ctable.n1 .cell li { font-size: 19px; }
+.ctable.n1 .cell ul { gap: 18px; }
+.ctable.n1 .cell { padding: 20px 18px; }
+.ctable.n1 .cid .num { font-size: 40px; }
+.ctable.n1 .cid .nm { font-size: 22px; }
+.cell.off { opacity: .12; transform: translateY(8px); filter: grayscale(1); }
+.cell.now { box-shadow: 0 0 0 3px var(--hl), 0 10px 24px rgba(26, 38, 67, .18); transform: scale(1.025); z-index: 2; }
+.cell .stamp { position: absolute; right: -8px; top: -12px; padding: 4px 9px; border-radius: 6px; background: var(--fault); color: var(--white); font: 900 13px/1 var(--display); transform: rotate(6deg); opacity: 0; transition: opacity .3s .3s; }
+.cell.faults.now .stamp, .cell.faults.seen .stamp { opacity: 1; }
+
+/* ── lifecycle diagram ── */
+.lc svg { width: 100%; height: 100%; }
+.lc text { font-family: var(--body); fill: var(--ink); }
+.lc .g { transition: opacity .6s; }
+.lc .g.dim { opacity: .14; }
+.lc .g.now .ring { animation: pulse 1.4s ease-in-out infinite; }
+.lc .flow { stroke-dasharray: 10 22; animation: flow 1.2s linear infinite; }
+.lc .policy-box { transition: stroke .4s; }
+.lc .g.now .policy-box { stroke: var(--hl); stroke-width: 4; }
+@keyframes pulse { 0%, 100% { stroke-width: 10 } 50% { stroke-width: 15 } }
+@keyframes flow { to { stroke-dashoffset: -32 } }
+
+/* ── trace ── */
+.trace { position: relative; height: 100%; display: flex; flex-direction: column; }
+.trace .lead { font: 500 19px/1.5 var(--body); color: var(--muted); margin: 4px 0 0; }
+.trace .lane { position: relative; flex: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; padding-top: 112px; }
+.trace .lane::before { content: ""; position: absolute; left: 4%; right: 4%; top: 152px; height: 10px; border-radius: 5px; background: var(--band); opacity: .9; }
+.trace .step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; transition: opacity .5s, transform .5s; }
+.trace .step.off { opacity: .18; transform: translateY(10px); }
+.trace .ringdot { width: 70px; height: 70px; border-radius: 50%; background: var(--white); border: 9px solid var(--ring); box-sizing: border-box; display: grid; place-items: center; font: 900 15px/1.1 var(--display); color: var(--ink); z-index: 1; transition: border-color .4s, transform .4s; }
+.trace .step.now .ringdot { border-color: var(--ring-deep); transform: scale(1.12); }
+.trace .ph { margin-top: 12px; font: 900 21px/1.2 var(--display); }
+.trace .ctl { margin-top: 6px; font: 700 12px/1.45 var(--mono); letter-spacing: -.02em; color: var(--band); min-height: 2.8em; }
+.trace .q { margin-top: 10px; padding: 14px 14px; border-radius: 12px; background: var(--white); border: 2px solid var(--line); font: 500 17px/1.55 var(--body); color: var(--ink); width: 100%; box-sizing: border-box; text-align: left; transition: border-color .4s, box-shadow .4s; }
+.trace .step.now .q { border-color: var(--hl); box-shadow: 0 10px 24px rgba(26, 38, 67, .14); }
+.trace .token { position: absolute; top: 16px; left: 0; width: 120px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: transform 1s cubic-bezier(.5, 0, .2, 1); z-index: 3; }
+.trace .token svg { width: 64px; height: 76px; filter: drop-shadow(0 6px 10px rgba(26, 38, 67, .25)); }
+.trace .token span { font: 900 14px/1 var(--display); background: var(--fault); color: var(--white); padding: 4px 8px; border-radius: 4px; }
+
+/* ── summary ── */
+.summary { height: 100%; display: flex; flex-direction: column; gap: 26px; justify-content: center; }
+.mantra { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.mt { padding: 26px 10px 20px; border-radius: 14px; background: var(--white); border: 3px solid var(--line); text-align: center; transition: opacity .5s, transform .6s cubic-bezier(.3, 1.5, .5, 1), border-color .4s; }
+.mt .w { font: 900 40px/1.1 var(--display); color: var(--ink); letter-spacing: .04em; }
+.mt .s { margin-top: 10px; font: 700 15px/1 var(--body); color: var(--muted); }
+.mt:nth-child(1) .w { color: var(--band); }
+.mt:nth-child(5) .w { color: var(--fault); }
+.mt.off { opacity: .1; transform: translateY(18px) scale(.94); }
+.mt.on { border-color: var(--ring); }
+.bye { padding: 22px 26px; border-radius: 14px; background: var(--ink); color: var(--paper); font: 700 23px/1.6 var(--body); transition: opacity .6s, transform .6s; }
+.bye b { color: var(--hl); }
+.bye.off { opacity: .1; transform: translateY(12px); }
+
+/* ── dock (player controls, outside the stage) ── */
+.dock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.dock button { display: inline-flex; align-items: center; gap: 6px; height: 40px; min-width: 40px; padding: 0 12px; border: 1px solid #2e4170; border-radius: 10px; background: #172a52; color: #e8eef9; font: 700 14px/1 var(--body); cursor: pointer; }
+.dock button:hover { background: #20386b; }
+.dock button:focus-visible { outline: 3px solid var(--hl); outline-offset: 2px; }
+.dock button[aria-pressed="true"] { background: var(--ring-deep); border-color: var(--ring-deep); color: var(--white); }
+.dock svg { width: 18px; height: 18px; }
+.dock .count { font: 700 14px/1 var(--mono); color: #b9c4dc; min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+.dots { display: flex; gap: 6px; }
+.dots button { width: 14px; min-width: 14px; height: 14px; padding: 0; border-radius: 50%; background: #2e4170; border: 0; }
+.dots button.cur { background: var(--ring); }
+@media (max-width: 640px) { .dots { display: none; } .dock button .lbl { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div class="app">
+  <div class="viewport" id="viewport">
+    <div class="stage-wrap" id="stageWrap">
+      <div id="stage" data-type="cover" role="region" aria-label="動畫簡報">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">Information protection · 運作能力</div>
+            <h1 id="slideTitle">資訊保護</h1>
+          </div>
+          <div class="rail" id="rail" aria-label="生命週期階段"></div>
+        </header>
+        <main id="content"></main>
+        <div class="allan" id="allan" aria-hidden="true"></div>
+        <div class="bubble" id="bubble">大家好！</div>
+        <footer class="subs" id="subs">
+          <div class="who">ALLAN LO<small>ISMS / PIMS 講師</small></div>
+          <div id="subText" aria-live="polite">按下「開始上課」，Allan 老師會帶你走完資訊保護的生命週期。</div>
+        </footer>
+      </div>
+    </div>
+  </div>
+  <nav class="dock" aria-label="播放控制">
+    <button id="btnPrev" title="上一頁（←）"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg><span class="lbl">上一頁</span></button>
+    <button id="btnPlay" title="播放／暫停（空白鍵）"><svg id="icoPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg><span class="lbl" id="playLbl">播放</span></button>
+    <button id="btnNext" title="下一頁（→）"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg><span class="lbl">下一頁</span></button>
+    <span class="count" id="count">1 / 1</span>
+    <div class="dots" id="dots"></div>
+    <button id="btnSub" aria-pressed="true" title="字幕（C）"><span>字幕</span></button>
+    <button id="btnFull" title="全螢幕（F）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="lbl">全螢幕</span></button>
+  </nav>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const PHASES = ["政策制定", "產生", "收集", "使用", "儲存", "存取", "銷毀"];
+const RECORD = location.hash === "#record";
+if (RECORD) document.body.classList.add("record");
+const $ = (id) => document.getElementById(id);
+const stage = $("stage"), content = $("content"), allanEl = $("allan"), subText = $("subText");
+
+const ICON = {
+  ops: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 12.5l2 2 4.5-4.5M8.5 18h7"/></svg>',
+  audit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>',
+  faults: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>',
+  play: '<path d="M7 4v16l13-8z"/>',
+  pause: '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>'
+};
+const FACET = { ops: "ISMS作業重點", audit: "稽核查核重點", faults: "常見缺失" };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ── Q版 Allan Lo ── */
+allanEl.innerHTML = `
+<svg viewBox="0 0 220 300">
+  <ellipse cx="110" cy="291" rx="62" ry="8" fill="#000" opacity=".16"/>
+  <rect x="83" y="238" width="22" height="44" rx="9" fill="#2a3040"/>
+  <rect x="115" y="238" width="22" height="44" rx="9" fill="#2a3040"/>
+  <ellipse cx="92" cy="283" rx="18" ry="8" fill="#17181d"/>
+  <ellipse cx="128" cy="283" rx="18" ry="8" fill="#17181d"/>
+  <path d="M60 250 Q57 186 86 168 L134 168 Q163 186 160 250 Q110 262 60 250Z" fill="#2c4372"/>
+  <path d="M94 168 L110 206 L126 168Z" fill="#fff"/>
+  <path d="M106 173 L114 173 L117 181 L113.5 214 L110 220 L106.5 214 L103 181Z" fill="#d0473a"/>
+  <path d="M94 168 L105 202 L86 184Z" fill="#22365f"/>
+  <path d="M126 168 L115 202 L134 184Z" fill="#22365f"/>
+  <rect x="129" y="203" width="25" height="13" rx="2" fill="#fff"/>
+  <text x="141.5" y="212.3" font-size="6.6" font-weight="700" text-anchor="middle" fill="#2c4372" font-family="sans-serif">ALLAN</text>
+  <path d="M68 186 Q50 206 57 236" stroke="#2c4372" stroke-width="19" fill="none" stroke-linecap="round"/>
+  <circle cx="57" cy="240" r="9.5" fill="#ffd9b8"/>
+  <g id="armR">
+    <line x1="164" y1="238" x2="214" y2="168" stroke="#8a5a2b" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="214" cy="168" r="5" fill="#e0483a"/>
+    <path d="M152 186 Q170 206 165 234" stroke="#2c4372" stroke-width="19" fill="none" stroke-linecap="round"/>
+    <circle cx="164" cy="239" r="9.5" fill="#ffd9b8"/>
+  </g>
+  <rect x="99" y="150" width="22" height="20" rx="6" fill="#f2c39d"/>
+  <g id="head">
+    <ellipse cx="42" cy="106" rx="11" ry="14" fill="#f7cba6"/>
+    <ellipse cx="178" cy="106" rx="11" ry="14" fill="#f7cba6"/>
+    <ellipse cx="110" cy="100" rx="69" ry="63" fill="#ffd9b8"/>
+    <path d="M41 104 Q34 40 100 30 Q166 24 180 84 Q182 98 178 108 Q172 74 146 62 Q124 78 80 70 Q58 76 50 108Z" fill="#25211f"/>
+    <path d="M80 70 Q104 44 146 62 Q120 58 98 76Z" fill="#3a3330"/>
+    <path d="M68 84 Q81 77 95 83" stroke="#25211f" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <path d="M125 83 Q139 77 152 84" stroke="#25211f" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <g id="eyes">
+      <ellipse cx="82" cy="104" rx="5.5" ry="7" fill="#1c1c22"/>
+      <ellipse cx="138" cy="104" rx="5.5" ry="7" fill="#1c1c22"/>
+      <circle cx="84" cy="101" r="2" fill="#fff"/>
+      <circle cx="140" cy="101" r="2" fill="#fff"/>
+    </g>
+    <rect x="62" y="89" width="40" height="30" rx="11" fill="#fff" fill-opacity=".18" stroke="#1f1f26" stroke-width="3.6"/>
+    <rect x="118" y="89" width="40" height="30" rx="11" fill="#fff" fill-opacity=".18" stroke="#1f1f26" stroke-width="3.6"/>
+    <path d="M102 101 Q110 96 118 101" stroke="#1f1f26" stroke-width="3.2" fill="none"/>
+    <path d="M62 99 L45 95 M158 99 L175 95" stroke="#1f1f26" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="70" cy="128" rx="10" ry="5.5" fill="#ff9a86" opacity=".5"/>
+    <ellipse cx="150" cy="128" rx="10" ry="5.5" fill="#ff9a86" opacity=".5"/>
+    <path id="mouthClosed" d="M97 131 Q110 142 123 131" stroke="#7a3326" stroke-width="3.8" fill="none" stroke-linecap="round"/>
+    <g id="mouthOpen" style="display:none">
+      <path d="M96 129 Q110 154 124 129Z" fill="#7a2a24"/>
+      <ellipse cx="110" cy="143" rx="7" ry="4" fill="#ea6c6a"/>
+    </g>
+  </g>
+</svg>`;
+const mouthOpen = $("mouthOpen"), mouthClosed = $("mouthClosed");
+let flapTimer = null;
+function setTalking(on) {
+  allanEl.classList.toggle("talking", on);
+  clearInterval(flapTimer);
+  if (!on) { mouthOpen.style.display = "none"; mouthClosed.style.display = ""; return; }
+  flapTimer = setInterval(() => {
+    const open = Math.random() > 0.28;
+    mouthOpen.style.display = open ? "" : "none";
+    mouthClosed.style.display = open ? "none" : "";
+    mouthOpen.style.transform = `scaleY(${(0.35 + Math.random() * 0.65).toFixed(2)})`;
+  }, 115);
+}
+let pointTimer = null;
+function gesture() {
+  allanEl.classList.add("point");
+  clearTimeout(pointTimer);
+  pointTimer = setTimeout(() => allanEl.classList.remove("point"), 1500);
+}
+
+/* ── rail ── */
+$("rail").innerHTML = PHASES.map((p, i) => (i ? '<span class="bar"></span>' : "") + `<div class="node" data-i="${i}"><span class="dot"></span>${p}</div>`).join("");
+
+/* ── slide renderers ── */
+function renderCover(s) {
+  return `<div class="cover">
+    <div class="txt">
+      <div class="eyebrow">ISO/IEC 27001:2022 · Annex A · Operational capabilities</div>
+      <h2><span>資訊保護</span><br>生命週期</h2>
+      <p class="sub">${esc(DATA.meta.subtitle)}</p>
+      <div class="facets">
+        <span class="facet ops">${ICON.ops}${FACET.ops}</span>
+        <span class="facet audit">${ICON.audit}${FACET.audit}</span>
+        <span class="facet faults">${ICON.faults}${FACET.faults}</span>
+      </div>
+      <button class="start-btn" id="startBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>開始上課</button>
+    </div>
+    <div class="loop"><b>政策</b><i></i><b>產生</b><i></i><b>使用</b><i></i><b>儲存</b><i></i><b>銷毀</b></div>
+  </div>`;
+}
+
+function renderControls(s) {
+  let h = `<div class="ctable n${s.controls.length}"><div class="chead blank"></div>`;
+  for (const f of ["ops", "audit", "faults"]) h += `<div class="chead ${f}">${ICON[f]}${FACET[f]}</div>`;
+  s.controls.forEach((c, r) => {
+    h += `<div class="cid" data-r="${r}"><div class="num">${esc(c.id)}</div><div class="nm">${esc(c.name)}</div></div>`;
+    for (const f of ["ops", "audit", "faults"]) {
+      h += `<div class="cell ${f}" data-cell="${r}:${f}"><ul>${c[f].map((t) => `<li>${esc(t)}</li>`).join("")}</ul>${f === "faults" ? '<span class="stamp">缺失!</span>' : ""}</div>`;
+    }
+  });
+  return h + "</div>";
+}
+
+function renderLifecycle() {
+  const ring = (x, y, label) => `<circle class="ring" cx="${x}" cy="${y}" r="47" fill="#fff" stroke="var(--ring)" stroke-width="10"/><text x="${x}" y="${y + 8}" text-anchor="middle" font-size="23" font-weight="900">${label}</text>`;
+  const lines = (x, y, arr, size = 17, anchor = "start") => arr.map((t, i) => `<text x="${x}" y="${y + i * (size + 9)}" font-size="${size}" font-weight="700" text-anchor="${anchor}">${t}</text>`).join("");
+  return `<div class="lc" style="height:100%"><svg viewBox="0 0 1000 524" role="img" aria-label="資訊保護生命週期流程圖">
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--band)"/></marker></defs>
+    <g class="g" data-g="band">
+      <path d="M90 236 H912" stroke="var(--band)" stroke-width="30" fill="none"/>
+      <path d="M752 236 V452 H90 V306" stroke="var(--band)" stroke-width="30" fill="none" marker-end="url(#ah)"/>
+      <path class="flow" d="M90 236 H912 M752 236 V452 H90 V300" stroke="#fff" stroke-opacity=".55" stroke-width="5" fill="none"/>
+    </g>
+    <g class="g" data-g="policy">
+      <rect class="policy-box" x="14" y="6" width="500" height="146" rx="8" fill="#fff" stroke="var(--band)" stroke-width="2" stroke-dasharray="6 5"/>
+      <text x="40" y="50" font-size="22" font-weight="900" fill="var(--band)" style="fill:var(--band)">政策</text>
+      <text x="40" y="78" font-size="22" font-weight="900" style="fill:var(--band)">制定</text>
+      ${lines(110, 40, ["5.12 資訊之分類分級", "5.13 資訊之標示", "5.10 可接受使用資訊及其他相關聯資產", "5.34 隱私及 PII 保護"], 19)}
+    </g>
+    <g class="g" data-g="create">${ring(90, 236, "產生")}${ring(250, 236, "收集")}
+      <rect x="128" y="300" width="190" height="64" rx="10" fill="var(--ops-bg)"/>
+      ${lines(146, 328, ["6.6 機密性或", "　　保密協議"], 17)}
+    </g>
+    <g class="g" data-g="use">${ring(470, 236, "使用")}
+      <rect x="352" y="296" width="330" height="140" rx="10" fill="var(--ops-bg)"/>
+      ${lines(368, 320, ["8.1 使用者端點裝置", "8.7 防範惡意軟體", "8.11 資料遮蔽"], 16)}
+      ${lines(528, 320, ["8.12 資料洩漏預防", "8.33 測試資訊", "8.34 稽核測試期間之保護"], 16)}
+    </g>
+    <g class="g" data-g="store">${ring(700, 236, "儲存")}${ring(752, 452, "存取")}
+      <rect x="784" y="300" width="184" height="64" rx="10" fill="var(--ops-bg)"/>
+      ${lines(798, 326, ["5.14 資訊傳送", "5.33 紀錄之保護"], 17)}
+    </g>
+    <g class="g" data-g="destroy">${ring(912, 236, "銷毀")}
+      <text x="912" y="168" font-size="18" font-weight="700" text-anchor="middle">8.10 資訊刪除</text>
+    </g>
+  </svg></div>`;
+}
+
+function renderTrace(s) {
+  return `<div class="trace">
+    <p class="lead">挑一筆重要資料（例：客戶個資），沿生命週期逐站提問，找出控制措施之間的斷點。</p>
+    <div class="lane" id="lane">
+      <div class="token" id="token"><svg viewBox="0 0 64 76"><path d="M4 4h38l18 18v50H4z" fill="#fff" stroke="#1a2643" stroke-width="3.5" stroke-linejoin="round"/><path d="M42 4v18h18" fill="none" stroke="#1a2643" stroke-width="3.5" stroke-linejoin="round"/><path d="M14 36h36M14 46h36M14 56h24" stroke="#4472c4" stroke-width="4" stroke-linecap="round"/></svg><span>客戶個資</span></div>
+      ${s.steps.map((st, i) => `<div class="step" data-step="${i}"><div class="ringdot">${i + 1}</div><div class="ph">${esc(st.phase)}</div><div class="ctl">${esc(st.ctrl)}</div><div class="q">${esc(st.q)}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderSummary(s) {
+  return `<div class="summary">
+    <div class="mantra">${s.mantra.map((m, i) => `<div class="mt" style="transition-delay:${i * 0.35}s"><div class="w">${esc(m.w)}</div><div class="s">${esc(m.s)}</div></div>`).join("")}</div>
+    <div class="bye">稽核看的不是文件寫了什麼，而是資訊在每一個階段，<b>有沒有真的被保護</b>。我們下堂課見！</div>
+  </div>`;
+}
+
+const RENDER = { cover: renderCover, controls: renderControls, lifecycle: renderLifecycle, trace: renderTrace, summary: renderSummary };
+
+/* ── state per slide: apply acts 0..upto (upto = Infinity → fully revealed, no focus) ── */
+function applyState(s, upto) {
+  const acts = s.segs.map((g) => g.act || "");
+  const done = upto === Infinity ? acts : acts.slice(0, upto + 1);
+  const cur = upto === Infinity ? null : acts[upto];
+  if (s.type === "controls") {
+    content.querySelectorAll(".cell").forEach((c) => {
+      const key = "cell:" + c.dataset.cell;
+      c.classList.toggle("off", !done.includes(key));
+      c.classList.toggle("now", key === cur);
+      c.classList.toggle("seen", done.includes(key));
+    });
+    const row = cur ? cur.split(":")[1] : null;
+    content.querySelectorAll(".cid").forEach((c) => c.classList.toggle("live", c.dataset.r === row));
+  } else if (s.type === "lifecycle") {
+    const shown = done.map((a) => a.replace("lc:", ""));
+    content.querySelectorAll(".g").forEach((g) => {
+      const k = g.dataset.g;
+      const vis = k === "band" ? shown.length > 0 : shown.includes(k);
+      g.classList.toggle("dim", !vis);
+      g.classList.toggle("now", cur === "lc:" + k);
+    });
+  } else if (s.type === "trace") {
+    const n = upto === Infinity ? s.steps.length - 1 : Math.max(-1, ...done.map((a) => +a.split(":")[1]));
+    const curStep = cur ? +cur.split(":")[1] : -2;
+    content.querySelectorAll(".step").forEach((el) => {
+      const i = +el.dataset.step;
+      el.classList.toggle("off", i > n);
+      el.classList.toggle("now", i === curStep);
+    });
+    moveToken(n);
+  } else if (s.type === "summary") {
+    content.querySelectorAll(".mt").forEach((m) => { m.classList.toggle("off", !done.includes("mantra")); m.classList.toggle("on", done.includes("mantra")); });
+    content.querySelector(".bye").classList.toggle("off", !done.includes("bye"));
+    allanEl.classList.toggle("wave", cur === "bye");
+  }
+}
+function moveToken(n) {
+  const lane = $("lane"), tok = $("token");
+  if (!lane || !tok) return;
+  const col = (lane.clientWidth - 16 * 4) / 5;
+  const x = n < 0 ? -10 : n * (col + 16) + col / 2 - 60;
+  tok.style.transform = `translateX(${x}px)`;
+}
+
+/* ── player ── */
+let si = 0, gi = -1, playing = false, segTimer = null, gapTimer = null, segStart = 0, rafId = 0;
+const audio = new Audio();
+audio.preload = "auto";
+let subsOn = true;
+
+function renderSlide(i) {
+  si = i;
+  const s = DATA.slides[i];
+  stage.dataset.type = s.type;
+  $("slideTitle").textContent = s.title || DATA.meta.title;
+  content.innerHTML = RENDER[s.type](s);
+  document.querySelectorAll(".rail .node").forEach((n) => n.classList.toggle("on", (s.phases || []).includes(+n.dataset.i)));
+  allanEl.classList.remove("wave", "point");
+  $("count").textContent = `${i + 1} / ${DATA.slides.length}`;
+  document.querySelectorAll("#dots button").forEach((b, k) => b.classList.toggle("cur", k === i));
+  const sb = $("startBtn");
+  if (sb) sb.addEventListener("click", () => play());
+  if (location.hash !== "#record") { try { history.replaceState(null, "", i ? "#s" + (i + 1) : location.pathname); } catch (e) {} }
+}
+
+function setSub(text) { subText.textContent = text; }
+
+function tickSubs() {
+  const seg = DATA.slides[si].segs[gi];
+  if (!seg) return;
+  const t = RECORD ? (performance.now() - segStart) / 1000 : audio.currentTime;
+  let cue = seg.cues[0];
+  for (const c of seg.cues) if (c[0] <= t + 0.05) cue = c;
+  if (cue && subText.textContent !== cue[1]) setSub(cue[1]);
+  rafId = requestAnimationFrame(tickSubs);
+}
+
+function playSeg() {
+  const s = DATA.slides[si], seg = s.segs[gi];
+  applyState(s, gi);
+  if (s.type !== "cover") gesture();
+  $("bubble").classList.toggle("show", s.type === "cover" && gi === 0);
+  setSub(seg.cues[0] ? seg.cues[0][1] : seg.say);
+  cancelAnimationFrame(rafId);
+  if (RECORD) {
+    window.__log.push({ audio: seg.audio, t: Date.now() });
+    segStart = performance.now();
+    setTalking(true);
+    segTimer = setTimeout(onSegEnd, seg.dur * 1000);
+    rafId = requestAnimationFrame(tickSubs);
+    return;
+  }
+  audio.src = seg.audio;
+  audio.play().then(() => { rafId = requestAnimationFrame(tickSubs); }).catch(() => speakFallback(seg));
+}
+
+/* 若音檔無法播放，改用瀏覽器內建的台灣中文語音 */
+function speakFallback(seg) {
+  if (!("speechSynthesis" in window)) { segTimer = setTimeout(onSegEnd, seg.dur * 1000); return; }
+  const u = new SpeechSynthesisUtterance(seg.say);
+  const v = speechSynthesis.getVoices().find((v) => /zh[-_]TW/i.test(v.lang));
+  if (v) u.voice = v;
+  u.lang = "zh-TW";
+  u.onstart = () => setTalking(true);
+  u.onend = () => { setTalking(false); if (playing) onSegEnd(); };
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+function onSegEnd() {
+  setTalking(false);
+  cancelAnimationFrame(rafId);
+  if (!playing) return;
+  const s = DATA.slides[si];
+  if (gi + 1 < s.segs.length) {
+    gapTimer = setTimeout(() => { gi++; playSeg(); }, 380);
+  } else if (si + 1 < DATA.slides.length) {
+    gapTimer = setTimeout(() => { renderSlide(si + 1); gi = 0; gapTimer = setTimeout(playSeg, 600); }, 900);
+  } else {
+    playing = false;
+    updatePlayBtn();
+    applyState(s, Infinity);
+    if (RECORD) gapTimer = setTimeout(() => { window.__done = true; }, 1500);
+  }
+}
+
+audio.addEventListener("playing", () => setTalking(true));
+audio.addEventListener("pause", () => setTalking(false));
+audio.addEventListener("ended", onSegEnd);
+audio.addEventListener("error", () => { if (playing && gi >= 0) speakFallback(DATA.slides[si].segs[gi]); });
+
+function stopAll() {
+  clearTimeout(segTimer); clearTimeout(gapTimer); cancelAnimationFrame(rafId);
+  audio.pause();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  setTalking(false);
+}
+function play() {
+  if (playing) return;
+  playing = true; updatePlayBtn();
+  const s = DATA.slides[si];
+  if (gi >= 0 && gi < s.segs.length && audio.src && audio.currentTime > 0 && !audio.ended) {
+    audio.play().then(() => { rafId = requestAnimationFrame(tickSubs); }).catch(() => speakFallback(s.segs[gi]));
+  } else {
+    gi = 0; playSeg();
+  }
+}
+function pause() { playing = false; updatePlayBtn(); stopAll(); }
+function go(i) {
+  if (i < 0 || i >= DATA.slides.length) return;
+  const was = playing;
+  stopAll(); audio.removeAttribute("src"); audio.load();
+  renderSlide(i); gi = -1;
+  if (was) { gi = 0; playSeg(); }
+  else { applyState(DATA.slides[i], Infinity); setSub("（已暫停）按下播放，Allan 老師從這一頁開始講解。"); }
+}
+function updatePlayBtn() {
+  $("icoPlay").innerHTML = playing ? ICON.pause : ICON.play;
+  $("playLbl").textContent = playing ? "暫停" : "播放";
+}
+
+/* ── dock ── */
+$("dots").innerHTML = DATA.slides.map((s, i) => `<button aria-label="第 ${i + 1} 頁：${esc(s.title || DATA.meta.title)}" title="${esc(s.title || DATA.meta.title)}"></button>`).join("");
+document.querySelectorAll("#dots button").forEach((b, i) => b.addEventListener("click", () => go(i)));
+$("btnPrev").addEventListener("click", () => go(si - 1));
+$("btnNext").addEventListener("click", () => go(si + 1));
+$("btnPlay").addEventListener("click", () => (playing ? pause() : play()));
+$("btnSub").addEventListener("click", (e) => { subsOn = !subsOn; $("subs").classList.toggle("off", !subsOn); e.currentTarget.setAttribute("aria-pressed", subsOn); });
+$("btnFull").addEventListener("click", () => {
+  const el = document.documentElement;
+  try { document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(() => {}); } catch (e) {}
+});
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("button") && (e.key === " " || e.key === "Enter")) return;
+  if (e.key === " ") { e.preventDefault(); playing ? pause() : play(); }
+  else if (e.key === "ArrowRight" || e.key === "PageDown") go(si + 1);
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") go(si - 1);
+  else if (e.key === "c" || e.key === "C") $("btnSub").click();
+  else if (e.key === "f" || e.key === "F") $("btnFull").click();
+});
+
+/* ── scale stage to fit ── */
+function fit() {
+  const vp = $("viewport"), wrap = $("stageWrap");
+  const k = RECORD ? 1 : Math.min(vp.clientWidth / 1280, vp.clientHeight / 720);
+  stage.style.transform = `scale(${k})`;
+  wrap.style.width = 1280 * k + "px";
+  wrap.style.height = 720 * k + "px";
+  if (DATA.slides[si].type === "trace") applyState(DATA.slides[si], playing ? gi : Infinity);
+}
+window.addEventListener("resize", fit);
+
+/* ── boot ── */
+const start = Math.max(0, Math.min(DATA.slides.length - 1, (+(location.hash.match(/^#s(\d+)$/) || [])[1] || 1) - 1));
+renderSlide(start);
+applyState(DATA.slides[start], Infinity);
+fit();
+if (RECORD) {
+  window.__log = [];
+  const cur = document.createElement("div"); cur.id = "curtain"; document.body.appendChild(cur);
+  window.__startRecord = () => { cur.remove(); window.__t0 = Date.now(); playing = true; gi = 0; gapTimer = setTimeout(playSeg, 1200); };
+}
+</script>

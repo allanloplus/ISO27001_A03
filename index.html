@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>資訊保護生命週期</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: 一張 1280×720 的投影舞台等比縮放置中；左側 Q 版講師，右側為逐步揭露的內容，底部為同步字幕。
+   單一視覺世界（深色講堂襯底 + 淺色投影片），刻意不隨主題切換。 */
+:root {
+  --surround: #0d1830;
+  --surround-2: #15244a;
+  --paper: #f4f7fb;
+  --ink: #1a2643;
+  --muted: #5a6784;
+  --line: #d3dbe8;
+  --band: #4472c4;
+  --ring: #9fcf88;
+  --ring-deep: #5c9a42;
+  --ops: #2c5cb5;
+  --ops-bg: #e6edfb;
+  --audit: #0e7c84;
+  --audit-bg: #def1f1;
+  --fault: #c4442d;
+  --fault-bg: #fbe8e3;
+  --hl: #ffcf3f;
+  --white: #ffffff;
+  --sub-bg: rgba(13, 24, 48, .9);
+  --sub-fg: #f4f7fb;
+  --display: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "WenQuanYi Zen Hei", sans-serif;
+  --body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "WenQuanYi Zen Hei", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 50% 30%, var(--surround-2), var(--surround) 70%);
+  background-color: var(--surround);
+  color: var(--sub-fg);
+  font-family: var(--body);
+  overflow: hidden;
+}
+.app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding-inline: 16px; padding-block: 12px; box-sizing: border-box; }
+.viewport { position: relative; width: 100%; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.stage-wrap { position: relative; }
+#stage {
+  position: absolute; left: 0; top: 0; width: 1280px; height: 720px;
+  transform-origin: 0 0; background: var(--paper); color: var(--ink);
+  border-radius: 10px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+}
+body.record .app { padding: 0; }
+body.record #stage { border-radius: 0; box-shadow: none; }
+#curtain { position: fixed; inset: 0; background: #000; z-index: 99; }
+body.record .dock, body.record .start-btn { display: none !important; }
+
+/* ── top bar ── */
+.topbar { position: absolute; left: 0; right: 0; top: 0; height: 86px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px 0 36px; border-bottom: 1px solid var(--line); background: var(--white); }
+.eyebrow { font: 700 13px/1 var(--mono); letter-spacing: .14em; color: var(--band); text-transform: uppercase; }
+.topbar h1 { margin: 8px 0 0; font: 900 30px/1.1 var(--display); letter-spacing: .02em; text-wrap: balance; }
+.rail { display: flex; align-items: center; gap: 0; }
+.rail .node { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 54px; font: 500 12px/1 var(--body); color: var(--muted); transition: color .4s; }
+.rail .dot { width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--line); background: var(--white); transition: all .4s; }
+.rail .bar { width: 14px; height: 4px; background: var(--line); margin-bottom: 17px; }
+.rail .node.on { color: var(--ink); font-weight: 700; }
+.rail .node.on .dot { border-color: var(--ring-deep); background: var(--ring); transform: scale(1.25); box-shadow: 0 0 0 4px rgba(159, 207, 136, .35); }
+#stage[data-type="cover"] .topbar { display: none; }
+
+/* ── content ── */
+#content { position: absolute; left: 252px; right: 30px; top: 100px; bottom: 96px; }
+#stage[data-type="cover"] #content { left: 0; right: 0; top: 0; bottom: 78px; }
+
+/* ── subtitles ── */
+.subs { position: absolute; left: 0; right: 0; bottom: 0; height: 80px; background: var(--sub-bg); color: var(--sub-fg); display: flex; align-items: center; gap: 18px; padding: 0 34px 0 252px; }
+.subs .who { position: absolute; left: 26px; top: 50%; transform: translateY(-50%); font: 700 13px/1.3 var(--mono); color: var(--ring); letter-spacing: .08em; }
+.subs .who small { display: block; font: 500 12px/1.3 var(--body); color: #b9c4dc; letter-spacing: 0; }
+#subText { font: 500 22px/1.45 var(--body); letter-spacing: .02em; text-wrap: balance; transition: opacity .2s; }
+.subs.off #subText { opacity: 0; }
+
+/* ── Allan ── */
+.allan { position: absolute; left: 14px; bottom: 76px; width: 226px; height: 308px; transition: all .8s cubic-bezier(.2, .8, .2, 1); z-index: 5; }
+#stage[data-type="cover"] .allan { left: 70px; bottom: 96px; width: 340px; height: 463px; }
+.allan svg { width: 100%; height: 100%; overflow: visible; }
+.allan #head { animation: bob 2.6s ease-in-out infinite; transform-box: view-box; }
+.allan.talking #head { animation: nod .5s ease-in-out infinite; }
+.allan #eyes { transform-box: fill-box; transform-origin: center; animation: blink 4.2s infinite; }
+.allan #armR { transform-box: view-box; transform-origin: 152px 186px; transition: transform .45s cubic-bezier(.3, 1.4, .5, 1); }
+.allan.point #armR { transform: rotate(-78deg); }
+.allan.wave #armR { animation: wave .7s ease-in-out infinite; }
+.allan #mouthOpen { transform-box: fill-box; transform-origin: 50% 0; }
+.bubble { position: absolute; left: 330px; top: 70px; background: var(--white); border: 3px solid var(--ink); border-radius: 22px; padding: 12px 20px; font: 900 26px/1.2 var(--display); color: var(--ink); opacity: 0; transform: scale(.6); transform-origin: 0 100%; transition: all .4s cubic-bezier(.3, 1.5, .5, 1); }
+.bubble::after { content: ""; position: absolute; left: 22px; bottom: -16px; border: 9px solid transparent; border-top-color: var(--ink); border-left-color: var(--ink); }
+#stage[data-type="cover"] .bubble.show { opacity: 1; transform: none; }
+#stage:not([data-type="cover"]) .bubble { display: none; }
+@keyframes bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+@keyframes nod { 0%, 100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(1.5px) rotate(.8deg) } }
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1) } 95% { transform: scaleY(.08) } }
+@keyframes wave { 0%, 100% { transform: rotate(-150deg) } 50% { transform: rotate(-118deg) } }
+
+/* ── cover ── */
+.cover { position: absolute; inset: 0; background:
+  linear-gradient(90deg, rgba(68, 114, 196, .07) 1px, transparent 1px) 0 0 / 40px 40px,
+  linear-gradient(rgba(68, 114, 196, .07) 1px, transparent 1px) 0 0 / 40px 40px, var(--paper); }
+.cover .txt { position: absolute; left: 470px; right: 60px; top: 120px; }
+.cover .txt .eyebrow { font-size: 15px; }
+.cover h2 { margin: 18px 0 10px; font: 900 76px/1.05 var(--display); letter-spacing: .03em; color: var(--ink); }
+.cover h2 span { color: var(--band); }
+.cover .sub { font: 500 21px/1.5 var(--body); color: var(--muted); margin: 0 0 30px; }
+.facets { display: flex; gap: 12px; flex-wrap: wrap; }
+.facet { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; font: 700 18px/1 var(--body); }
+.facet svg { width: 20px; height: 20px; }
+.facet.ops { background: var(--ops-bg); color: var(--ops); }
+.facet.audit { background: var(--audit-bg); color: var(--audit); }
+.facet.faults { background: var(--fault-bg); color: var(--fault); }
+.cover .loop { position: absolute; left: 470px; right: 60px; bottom: 40px; display: flex; align-items: center; gap: 10px; font: 700 16px/1 var(--body); color: var(--ink); }
+.cover .loop i { flex: 1; height: 8px; background: var(--band); border-radius: 4px; }
+.cover .loop b { width: 62px; height: 62px; border-radius: 50%; border: 6px solid var(--ring); background: var(--white); display: grid; place-items: center; font-size: 16px; }
+.start-btn { margin-top: 34px; display: inline-flex; align-items: center; gap: 12px; padding: 16px 30px; border: 0; border-radius: 999px; background: var(--ink); color: var(--white); font: 900 22px/1 var(--display); cursor: pointer; box-shadow: 0 8px 0 #0a1226; transition: transform .1s, box-shadow .1s; }
+.start-btn:hover { background: #24345c; }
+.start-btn:active { transform: translateY(4px); box-shadow: 0 4px 0 #0a1226; }
+.start-btn:focus-visible { outline: 4px solid var(--hl); outline-offset: 3px; }
+.start-btn svg { width: 22px; height: 22px; }
+
+/* ── control table ── */
+.ctable { height: 100%; display: grid; grid-template-columns: 172px repeat(3, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: 1fr; gap: 10px; }
+.chead { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font: 900 17px/1 var(--display); color: var(--white); }
+.chead svg { width: 20px; height: 20px; flex: none; }
+.chead.blank { background: transparent; }
+.chead.ops { background: var(--ops); }
+.chead.audit { background: var(--audit); }
+.chead.faults { background: var(--fault); }
+.cid { display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--white); border: 2px solid var(--line); transition: border-color .4s, box-shadow .4s; min-width: 0; }
+.cid .num { font: 700 30px/1 var(--mono); color: var(--band); }
+.cid .nm { font: 900 18px/1.3 var(--display); color: var(--ink); text-wrap: balance; }
+.cid.live { border-color: var(--ring-deep); box-shadow: 0 0 0 4px rgba(159, 207, 136, .35); }
+.cell { position: relative; border-radius: 10px; padding: 12px 14px 12px 12px; min-width: 0; transition: opacity .5s, transform .5s cubic-bezier(.2, .9, .3, 1.2), box-shadow .4s, filter .5s; }
+.cell.ops { background: var(--ops-bg); }
+.cell.audit { background: var(--audit-bg); }
+.cell.faults { background: var(--fault-bg); }
+.cell ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.cell li { position: relative; padding-left: 16px; font: 500 15.5px/1.5 var(--body); color: var(--ink); }
+.cell li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px; border-radius: 2px; }
+.cell.ops li::before { background: var(--ops); }
+.cell.audit li::before { background: var(--audit); }
+.cell.faults li::before { background: var(--fault); transform: rotate(45deg); }
+.ctable.n1 .cell li { font-size: 19px; }
+.ctable.n1 .cell ul { gap: 18px; }
+.ctable.n1 .cell { padding: 20px 18px; }
+.ctable.n1 .cid .num { font-size: 40px; }
+.ctable.n1 .cid .nm { font-size: 22px; }
+.cell.off { opacity: .12; transform: translateY(8px); filter: grayscale(1); }
+.cell.now { box-shadow: 0 0 0 3px var(--hl), 0 10px 24px rgba(26, 38, 67, .18); transform: scale(1.025); z-index: 2; }
+.cell .stamp { position: absolute; right: -8px; top: -12px; padding: 4px 9px; border-radius: 6px; background: var(--fault); color: var(--white); font: 900 13px/1 var(--display); transform: rotate(6deg); opacity: 0; transition: opacity .3s .3s; }
+.cell.faults.now .stamp, .cell.faults.seen .stamp { opacity: 1; }
+
+/* ── lifecycle diagram ── */
+.lc svg { width: 100%; height: 100%; }
+.lc text { font-family: var(--body); fill: var(--ink); }
+.lc .g { transition: opacity .6s; }
+.lc .g.dim { opacity: .14; }
+.lc .g.now .ring { animation: pulse 1.4s ease-in-out infinite; }
+.lc .flow { stroke-dasharray: 10 22; animation: flow 1.2s linear infinite; }
+.lc .policy-box { transition: stroke .4s; }
+.lc .g.now .policy-box { stroke: var(--hl); stroke-width: 4; }
+@keyframes pulse { 0%, 100% { stroke-width: 10 } 50% { stroke-width: 15 } }
+@keyframes flow { to { stroke-dashoffset: -32 } }
+
+/* ── trace ── */
+.trace { position: relative; height: 100%; display: flex; flex-direction: column; }
+.trace .lead { font: 500 19px/1.5 var(--body); color: var(--muted); margin: 4px 0 0; }
+.trace .lane { position: relative; flex: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; padding-top: 112px; }
+.trace .lane::before { content: ""; position: absolute; left: 4%; right: 4%; top: 152px; height: 10px; border-radius: 5px; background: var(--band); opacity: .9; }
+.trace .step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; transition: opacity .5s, transform .5s; }
+.trace .step.off { opacity: .18; transform: translateY(10px); }
+.trace .ringdot { width: 70px; height: 70px; border-radius: 50%; background: var(--white); border: 9px solid var(--ring); box-sizing: border-box; display: grid; place-items: center; font: 900 15px/1.1 var(--display); color: var(--ink); z-index: 1; transition: border-color .4s, transform .4s; }
+.trace .step.now .ringdot { border-color: var(--ring-deep); transform: scale(1.12); }
+.trace .ph { margin-top: 12px; font: 900 21px/1.2 var(--display); }
+.trace .ctl { margin-top: 6px; font: 700 12px/1.45 var(--mono); letter-spacing: -.02em; color: var(--band); min-height: 2.8em; }
+.trace .q { margin-top: 10px; padding: 14px 14px; border-radius: 12px; background: var(--white); border: 2px solid var(--line); font: 500 17px/1.55 var(--body); color: var(--ink); width: 100%; box-sizing: border-box; text-align: left; transition: border-color .4s, box-shadow .4s; }
+.trace .step.now .q { border-color: var(--hl); box-shadow: 0 10px 24px rgba(26, 38, 67, .14); }
+.trace .token { position: absolute; top: 16px; left: 0; width: 120px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: transform 1s cubic-bezier(.5, 0, .2, 1); z-index: 3; }
+.trace .token svg { width: 64px; height: 76px; filter: drop-shadow(0 6px 10px rgba(26, 38, 67, .25)); }
+.trace .token span { font: 900 14px/1 var(--display); background: var(--fault); color: var(--white); padding: 4px 8px; border-radius: 4px; }
+
+/* ── summary ── */
+.summary { height: 100%; display: flex; flex-direction: column; gap: 26px; justify-content: center; }
+.mantra { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.mt { padding: 26px 10px 20px; border-radius: 14px; background: var(--white); border: 3px solid var(--line); text-align: center; transition: opacity .5s, transform .6s cubic-bezier(.3, 1.5, .5, 1), border-color .4s; }
+.mt .w { font: 900 40px/1.1 var(--display); color: var(--ink); letter-spacing: .04em; }
+.mt .s { margin-top: 10px; font: 700 15px/1 var(--body); color: var(--muted); }
+.mt:nth-child(1) .w { color: var(--band); }
+.mt:nth-child(5) .w { color: var(--fault); }
+.mt.off { opacity: .1; transform: translateY(18px) scale(.94); }
+.mt.on { border-color: var(--ring); }
+.bye { padding: 22px 26px; border-radius: 14px; background: var(--ink); color: var(--paper); font: 700 23px/1.6 var(--body); transition: opacity .6s, transform .6s; }
+.bye b { color: var(--hl); }
+.bye.off { opacity: .1; transform: translateY(12px); }
+
+/* ── dock (player controls, outside the stage) ── */
+.dock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.dock button { display: inline-flex; align-items: center; gap: 6px; height: 40px; min-width: 40px; padding: 0 12px; border: 1px solid #2e4170; border-radius: 10px; background: #172a52; color: #e8eef9; font: 700 14px/1 var(--body); cursor: pointer; }
+.dock button:hover { background: #20386b; }
+.dock button:focus-visible { outline: 3px solid var(--hl); outline-offset: 2px; }
+.dock button[aria-pressed="true"] { background: var(--ring-deep); border-color: var(--ring-deep); color: var(--white); }
+.dock svg { width: 18px; height: 18px; }
+.dock .count { font: 700 14px/1 var(--mono); color: #b9c4dc; min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+.dots { display: flex; gap: 6px; }
+.dots button { width: 14px; min-width: 14px; height: 14px; padding: 0; border-radius: 50%; background: #2e4170; border: 0; }
+.dots button.cur { background: var(--ring); }
+@media (max-width: 640px) { .dots { display: none; } .dock button .lbl { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div class="app">
+  <div class="viewport" id="viewport">
+    <div class="stage-wrap" id="stageWrap">
+      <div id="stage" data-type="cover" role="region" aria-label="動畫簡報">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">Information protection · 運作能力</div>
+            <h1 id="slideTitle">資訊保護</h1>
+          </div>
+          <div class="rail" id="rail" aria-label="生命週期階段"></div>
+        </header>
+        <main id="content"></main>
+        <div class="allan" id="allan" aria-hidden="true"></div>
+        <div class="bubble" id="bubble">大家好！</div>
+        <footer class="subs" id="subs">
+          <div class="who">ALLAN LO<small>ISMS / PIMS 講師</small></div>
+          <div id="subText" aria-live="polite">按下「開始上課」，Allan 老師會帶你走完資訊保護的生命週期。</div>
+        </footer>
+      </div>
+    </div>
+  </div>
+  <nav class="dock" aria-label="播放控制">
+    <button id="btnPrev" title="上一頁（←）"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg><span class="lbl">上一頁</span></button>
+    <button id="btnPlay" title="播放／暫停（空白鍵）"><svg id="icoPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg><span class="lbl" id="playLbl">播放</span></button>
+    <button id="btnNext" title="下一頁（→）"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg><span class="lbl">下一頁</span></button>
+    <span class="count" id="count">1 / 1</span>
+    <div class="dots" id="dots"></div>
+    <button id="btnSub" aria-pressed="true" title="字幕（C）"><span>字幕</span></button>
+    <button id="btnFull" title="全螢幕（F）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="lbl">全螢幕</span></button>
+  </nav>
+</div>
+
+<script>
+const DATA = {"meta": {"title": "資訊保護生命週期", "subtitle": "ISO/IEC 27001:2022 控制屬性｜運作能力：Information protection", "lecturer": "Allan Lo", "voice": "zh-TW-YunJheNeural", "rate": "+5%"}, "slides": [{"type": "cover", "segs": [{"say": "各位學員大家好，我是Allan Lo。今天這堂課，我們用ISO 27001:2022的控制屬性「運作能力」，來看資訊保護，也就是Information protection。", "audio": "audio/s01_01.mp3", "dur": 11.928, "cues": [[0.1, "各位學員大家好，我是Allan Lo。"], [3.133, "今天這堂課，我們用ISO 27001:2022的控制屬性「運作能力」，來看資訊保護，也就是Information protection。"]]}, {"say": "我們會沿著資訊的生命週期，從政策制定、產生收集、使用、儲存存取，一路走到銷毀。每個階段都從三個面向來看：ISMS作業重點、稽核查核重點，還有常見的缺失。", "audio": "audio/s01_02.mp3", "dur": 15.048, "cues": [[0.1, "我們會沿著資訊的生命週期，從政策制定、產生收集、使用、儲存存取，一路走到銷毀。"], [8.181, "每個階段都從三個面向來看：ISMS作業重點、稽核查核重點，還有常見的缺失。"]]}]}, {"type": "lifecycle", "title": "資訊保護的運作流程", "phases": [0, 1, 2, 3, 4, 5, 6], "segs": [{"act": "lc:policy", "say": "先看全貌。2022年版附錄A的每一項控制措施，都有五種屬性，其中「運作能力」是依照企業的運作流程來分組。資訊保護這一組，最上面是政策制定，包括5.12分類分級、5.13標示、5.10可接受使用，以及5.34隱私及PII保護。", "audio": "audio/s02_01.mp3", "dur": 20.208, "cues": [[0.1, "先看全貌。"], [1.955, "2022年版附錄A的每一項控制措施，都有五種屬性，其中「運作能力」是依照企業的運作流程來分組。"], [9.621, "資訊保護這一組，最上面是政策制定，包括5.12分類分級、5.13標示、5.10可接受使用，以及5.34隱私及PII保護。"]]}, {"act": "lc:create", "say": "資訊一產生、一被收集，就要先用6.6保密協議，把接觸資訊的人約束住。", "audio": "audio/s02_02.mp3", "dur": 6.528, "cues": [[0.1, "資訊一產生、一被收集，就要先用6.6保密協議，把接觸資訊的人約束住。"]]}, {"act": "lc:use", "say": "使用階段的控制措施最多，包括8.1使用者端點裝置、8.7防範惡意軟體、8.11資料遮蔽、8.12資料洩漏預防、8.33測試資訊，以及8.34稽核測試期間資訊系統之保護。", "audio": "audio/s02_03.mp3", "dur": 14.4, "cues": [[0.1, "使用階段的控制措施最多，包括8.1使用者端點裝置、8.7防範惡意軟體、8.11資料遮蔽、8.12資料洩漏預防、8.33測試資訊，以及8.34稽核測試期間資訊系統之保護。"]]}, {"act": "lc:store", "say": "儲存與存取階段，重點是5.14資訊傳送，和5.33紀錄之保護。", "audio": "audio/s02_04.mp3", "dur": 6.312, "cues": [[0.1, "儲存與存取階段，重點是5.14資訊傳送，和5.33紀錄之保護。"]]}, {"act": "lc:destroy", "say": "最後是銷毀，對應8.10資訊刪除。請注意，這是一個循環。資訊會被存取、再利用、再產生，所以保護要持續進行，不是做一次就好。", "audio": "audio/s02_05.mp3", "dur": 13.8, "cues": [[0.1, "最後是銷毀，對應8.10資訊刪除。"], [4.002, "請注意，這是一個循環。"], [6.99, "資訊會被存取、再利用、再產生，所以保護要持續進行，不是做一次就好。"]]}]}, {"type": "controls", "title": "政策制定（一）", "phases": [0], "controls": [{"id": "5.12", "name": "資訊之分類分級", "ops": ["依機密性、完整性、可用性及法規要求訂定等級（機密／限閱／內部／公開）", "資產擁有者負責分級，並定期重新檢視"], "audit": ["抽樣資產清冊：每筆是否都有分級與擁有者", "訪談同仁：能否說明分級定義與判斷依據"], "faults": ["有分級辦法，資產清冊卻未落實", "一律標「內部使用」，分級失去意義"]}, {"id": "5.13", "name": "資訊之標示", "ops": ["依分級訂定標示程序，涵蓋紙本、電子檔、郵件、儲存媒體", "善用頁首頁尾、浮水印、詮釋資料自動標示"], "audit": ["抽查機密文件、郵件、USB 是否依規定標示", "現場觀察印表機旁、會議室白板、桌面"], "faults": ["機密文件未標示，或標示與實際等級不符", "只規範紙本，郵件與雲端檔案沒有標示機制"]}], "segs": [{"act": "cell:0:ops", "say": "我們從政策制定開始。5.12資訊之分類分級，作業重點是依照機密性、完整性、可用性，還有法規及利害關係者的要求來訂等級，例如機密、限閱、內部、公開。分級的責任在資產擁有者，而且要定期重新檢視。", "audio": "audio/s03_01.mp3", "dur": 19.392, "cues": [[0.1, "我們從政策制定開始。"], [2.717, "5.12資訊之分類分級，作業重點是依照機密性、完整性、可用性，還有法規及利害關係者的要求來訂等級，例如機密、限閱、內部、公開。"], [14.8, "分級的責任在資產擁有者，而且要定期重新檢視。"]]}, {"act": "cell:0:audit", "say": "稽核的時候，我會從資產清冊抽樣，看每一筆是不是都有分級、有擁有者。再找現場同仁聊一聊，請他說說看，手上這份文件為什麼是這個等級。", "audio": "audio/s03_02.mp3", "dur": 12.456, "cues": [[0.1, "稽核的時候，我會從資產清冊抽樣，看每一筆是不是都有分級、有擁有者。"], [6.431, "再找現場同仁聊一聊，請他說說看，手上這份文件為什麼是這個等級。"]]}, {"act": "cell:0:faults", "say": "最常見的缺失，就是辦法寫得很漂亮，清冊卻沒有落實。或者全部都標內部使用，一刀切，分級就失去意義了。", "audio": "audio/s03_03.mp3", "dur": 9.984, "cues": [[0.1, "最常見的缺失，就是辦法寫得很漂亮，清冊卻沒有落實。"], [5.145, "或者全部都標內部使用，一刀切，分級就失去意義了。"]]}, {"act": "cell:1:ops", "say": "5.13資訊之標示，要依分級訂出標示程序，範圍涵蓋紙本、電子檔、電子郵件和儲存媒體。能自動化就自動化，像是頁首頁尾、浮水印，或在檔案的詮釋資料加上標籤。", "audio": "audio/s03_04.mp3", "dur": 14.976, "cues": [[0.1, "5.13資訊之標示，要依分級訂出標示程序，範圍涵蓋紙本、電子檔、電子郵件和儲存媒體。"], [8.3, "能自動化就自動化，像是頁首頁尾、浮水印，或在檔案的詮釋資料加上標籤。"]]}, {"act": "cell:1:audit", "say": "查核重點是抽查機密文件、郵件和USB有沒有照規定標示。也要到現場走一走，印表機旁邊、會議室白板，最容易找到證據。", "audio": "audio/s03_05.mp3", "dur": 11.16, "cues": [[0.1, "查核重點是抽查機密文件、郵件和USB有沒有照規定標示。"], [5.407, "也要到現場走一走，印表機旁邊、會議室白板，最容易找到證據。"]]}, {"act": "cell:1:faults", "say": "常見缺失是機密文件沒有標示，或是標示等級和實際內容不符。還有一種，只規範紙本，電子郵件和雲端檔案完全沒有標示機制。", "audio": "audio/s03_06.mp3", "dur": 11.568, "cues": [[0.1, "常見缺失是機密文件沒有標示，或是標示等級和實際內容不符。"], [5.752, "還有一種，只規範紙本，電子郵件和雲端檔案完全沒有標示機制。"]]}]}, {"type": "controls", "title": "政策制定（二）", "phases": [0], "controls": [{"id": "5.10", "name": "可接受使用資訊及其他相關聯資產", "ops": ["訂定可接受使用規則，依分級規範存取、複製、儲存、傳送、銷毀", "新進人員與委外人員宣導並簽署"], "audit": ["抽查簽署紀錄與教育訓練紀錄", "確認規則與分級辦法相互對應"], "faults": ["委外、工讀生、約聘人員未納入", "規則與分級脫鉤，各等級處理方式沒差別"]}, {"id": "5.34", "name": "隱私及 PII 保護", "ops": ["識別適用法規（個資法、GDPR）與契約要求", "完成個資盤點、風險評鑑、指定窗口；可與 PIMS（ISO 27701）整合"], "audit": ["個資盤點清冊、蒐集告知、當事人權利行使紀錄", "個資外洩通報程序與演練紀錄"], "faults": ["盤點漏掉紙本、備份、委外處理的個資", "蒐集目的變更，告知事項卻未更新"]}], "segs": [{"act": "cell:0:ops", "say": "接下來5.10，可接受使用資訊及其他相關聯資產。作業重點是把可接受使用的規則寫清楚，而且要跟分級連動。每個等級怎麼存取、怎麼複製、怎麼傳送、怎麼銷毀，都要講明白，並且對新進同仁和委外人員宣導、簽署。", "audio": "audio/s04_01.mp3", "dur": 19.776, "cues": [[0.1, "接下來5.10，可接受使用資訊及其他相關聯資產。"], [4.943, "作業重點是把可接受使用的規則寫清楚，而且要跟分級連動。"], [10.145, "每個等級怎麼存取、怎麼複製、怎麼傳送、怎麼銷毀，都要講明白，並且對新進同仁和委外人員宣導、簽署。"]]}, {"act": "cell:0:audit", "say": "稽核時抽查簽署和教育訓練紀錄，同時比對一下，這份規則跟分級辦法是不是真的有對應。", "audio": "audio/s04_02.mp3", "dur": 7.488, "cues": [[0.1, "稽核時抽查簽署和教育訓練紀錄，同時比對一下，這份規則跟分級辦法是不是真的有對應。"]]}, {"act": "cell:0:faults", "say": "常見缺失是委外人員、工讀生、約聘人員沒有納入。或是規則和分級脫鉤，機密跟公開的處理方式竟然一模一樣。", "audio": "audio/s04_03.mp3", "dur": 10.224, "cues": [[0.1, "常見缺失是委外人員、工讀生、約聘人員沒有納入。"], [5.098, "或是規則和分級脫鉤，機密跟公開的處理方式竟然一模一樣。"]]}, {"act": "cell:1:ops", "say": "5.34隱私及PII保護。先識別適用的法規，像台灣的個資法、歐盟的GDPR，還有契約要求。再做個資盤點、風險評鑑，指定個資管理窗口。有在推動PIMS的單位，可以和ISO 27701整合。", "audio": "audio/s04_04.mp3", "dur": 18.24, "cues": [[0.1, "5.34隱私及PII保護。"], [3.086, "先識別適用的法規，像台灣的個資法、歐盟的GDPR，還有契約要求。"], [9.038, "再做個資盤點、風險評鑑，指定個資管理窗口。"], [13.705, "有在推動PIMS的單位，可以和ISO 27701整合。"]]}, {"act": "cell:1:audit", "say": "查核時，我會看個資盤點清冊、蒐集時的告知內容、當事人行使權利的處理紀錄，還有個資外洩的通報程序與演練紀錄。", "audio": "audio/s04_05.mp3", "dur": 9.624, "cues": [[0.1, "查核時，我會看個資盤點清冊、蒐集時的告知內容、當事人行使權利的處理紀錄，還有個資外洩的通報程序與演練紀錄。"]]}, {"act": "cell:1:faults", "say": "最常見的缺失是盤點不完整，漏掉紙本、備份檔，還有委外廠商處理的個資。另外，蒐集目的變了，告知事項卻沒有更新，也很常見。", "audio": "audio/s04_06.mp3", "dur": 12.024, "cues": [[0.1, "最常見的缺失是盤點不完整，漏掉紙本、備份檔，還有委外廠商處理的個資。"], [6.621, "另外，蒐集目的變了，告知事項卻沒有更新，也很常見。"]]}]}, {"type": "controls", "title": "產生與收集", "phases": [1, 2], "controls": [{"id": "6.6", "name": "機密性或保密協議", "ops": ["員工、委外、訪客、合作夥伴依角色簽署保密協議", "條款涵蓋保密範圍、期間、違約責任、離職返還或銷毀義務", "依組織需求與法規變化，定期審查協議內容"], "audit": ["抽樣新進員工與委外人員的保密協議", "比對簽署日是否早於帳號開通日、資料提供日", "確認條款反映資訊分級與個資保護要求"], "faults": ["駐點委外、工讀生、實習生漏簽", "先開帳號、後補簽，時間順序倒置", "範本多年未審查，缺個資與離職後義務條款"]}], "segs": [{"act": "cell:0:ops", "say": "資訊一產生、一被收集，就要先把人約束住，這就是6.6機密性或保密協議。員工、委外人員、訪客和合作夥伴，都要依角色簽署。條款要涵蓋保密範圍、期間、違約責任，以及離職或合約結束時，資料要返還或銷毀。協議內容也要定期審查。", "audio": "audio/s05_01.mp3", "dur": 22.44, "cues": [[0.1, "資訊一產生、一被收集，就要先把人約束住，這就是6.6機密性或保密協議。"], [6.717, "員工、委外人員、訪客和合作夥伴，都要依角色簽署。"], [12.002, "條款要涵蓋保密範圍、期間、違約責任，以及離職或合約結束時，資料要返還或銷毀。"], [19.633, "協議內容也要定期審查。"]]}, {"act": "cell:0:audit", "say": "我稽核的小技巧是：抽樣新進員工和委外人員，把保密協議的簽署日期，和帳號開通日、資料提供日放在一起比。簽署日一定要在前面。另外看條款有沒有反映分級和個資的要求。", "audio": "audio/s05_02.mp3", "dur": 15.84, "cues": [[0.1, "我稽核的小技巧是：抽樣新進員工和委外人員，把保密協議的簽署日期，和帳號開通日、資料提供日放在一起比。"], [9.252, "簽署日一定要在前面。"], [11.919, "另外看條款有沒有反映分級和個資的要求。"]]}, {"act": "cell:0:faults", "say": "常見缺失有三種。第一，駐點委外、工讀生、實習生漏簽。第二，先開帳號再補簽，時間順序倒過來。第三，範本好多年沒審查，缺少個資條款和離職後的保密義務。", "audio": "audio/s05_03.mp3", "dur": 16.584, "cues": [[0.1, "常見缺失有三種。"], [2.55, "第一，駐點委外、工讀生、實習生漏簽。"], [6.788, "第二，先開帳號再補簽，時間順序倒過來。"], [11.086, "第三，範本好多年沒審查，缺少個資條款和離職後的保密義務。"]]}]}, {"type": "controls", "title": "使用（一）", "phases": [3], "controls": [{"id": "8.1", "name": "使用者端點裝置", "ops": ["端點登錄管理、全磁碟加密、螢幕自動鎖定", "BYOD 政策搭配 MDM，遺失可遠端抹除"], "audit": ["抽樣筆電，現場檢查加密、更新、鎖定設定", "比對 MDM 報表、資產清冊與實際端點數"], "faults": ["加密覆蓋率不足，BYOD 完全無管理", "離職人員裝置未回收、未抹除"]}, {"id": "8.7", "name": "防範惡意軟體", "ops": ["防毒／EDR 全面部署並自動更新", "限制安裝未授權軟體，搭配認知教育"], "audit": ["主控台：覆蓋率、病毒碼版本、長期離線端點", "抽查告警事件處理紀錄"], "faults": ["Linux 伺服器、OT 設備未裝且無替代措施", "告警沒人看，端點數與清冊兜不起來"]}, {"id": "8.12", "name": "資料洩漏預防", "ops": ["依分級識別敏感資料，管控郵件、USB、雲端、列印出口", "監控、告警並有回應程序"], "audit": ["DLP 規則是否對應分級與個資", "抽查事件處理與例外核准紀錄"], "faults": ["只監控不阻擋，事件無人審閱", "USB 例外開放過多且沒有期限"]}], "segs": [{"act": "cell:0:ops", "say": "進入使用階段，這是控制措施最密集的地方。8.1使用者端點裝置，作業重點包括端點登錄管理、全磁碟加密、螢幕自動鎖定。允許自攜裝置的話，要有BYOD政策，搭配MDM，遺失時可以遠端抹除。", "audio": "audio/s06_01.mp3", "dur": 17.76, "cues": [[0.1, "進入使用階段，這是控制措施最密集的地方。"], [4.098, "8.1使用者端點裝置，作業重點包括端點登錄管理、全磁碟加密、螢幕自動鎖定。"], [11.336, "允許自攜裝置的話，要有BYOD政策，搭配MDM，遺失時可以遠端抹除。"]]}, {"act": "cell:0:audit", "say": "稽核時，我會直接請同仁打開筆電，看加密、更新和鎖定設定。再把MDM報表、資產清冊和實際的端點數量比一比。", "audio": "audio/s06_02.mp3", "dur": 10.776, "cues": [[0.1, "稽核時，我會直接請同仁打開筆電，看加密、更新和鎖定設定。"], [5.931, "再把MDM報表、資產清冊和實際的端點數量比一比。"]]}, {"act": "cell:0:faults", "say": "常見缺失是加密覆蓋率沒有百分之百，BYOD完全沒有管理，還有離職同仁的裝置沒有回收、沒有抹除。", "audio": "audio/s06_03.mp3", "dur": 8.304, "cues": [[0.1, "常見缺失是加密覆蓋率沒有百分之百，BYOD完全沒有管理，還有離職同仁的裝置沒有回收、沒有抹除。"]]}, {"act": "cell:1:ops", "say": "8.7防範惡意軟體，防毒或EDR要全面部署、自動更新，同時限制安裝未經授權的軟體，再搭配使用者的認知教育。", "audio": "audio/s06_04.mp3", "dur": 9.456, "cues": [[0.1, "8.7防範惡意軟體，防毒或EDR要全面部署、自動更新，同時限制安裝未經授權的軟體，再搭配使用者的認知教育。"]]}, {"act": "cell:1:audit", "say": "查核重點在主控台：覆蓋率多少、病毒碼是不是最新、有哪些端點長期離線。再抽幾筆告警，看處理紀錄。", "audio": "audio/s06_05.mp3", "dur": 10.128, "cues": [[0.1, "查核重點在主控台：覆蓋率多少、病毒碼是不是最新、有哪些端點長期離線。"], [6.824, "再抽幾筆告警，看處理紀錄。"]]}, {"act": "cell:1:faults", "say": "常見缺失是Linux伺服器或OT設備沒有安裝，也沒有替代措施。告警沒有人看，主控台的端點數和資產清冊也兜不起來。", "audio": "audio/s06_06.mp3", "dur": 10.248, "cues": [[0.1, "常見缺失是Linux伺服器或OT設備沒有安裝，也沒有替代措施。"], [5.229, "告警沒有人看，主控台的端點數和資產清冊也兜不起來。"]]}, {"act": "cell:2:ops", "say": "8.12資料洩漏預防，要依分級找出敏感資料，管控電子郵件、USB、雲端和列印這些出口，而且要有監控、告警和回應程序。", "audio": "audio/s06_07.mp3", "dur": 10.656, "cues": [[0.1, "8.12資料洩漏預防，要依分級找出敏感資料，管控電子郵件、USB、雲端和列印這些出口，而且要有監控、告警和回應程序。"]]}, {"act": "cell:2:audit", "say": "稽核時看DLP規則是不是對應分級和個資，再抽查事件處理和例外核准紀錄。", "audio": "audio/s06_08.mp3", "dur": 6.456, "cues": [[0.1, "稽核時看DLP規則是不是對應分級和個資，再抽查事件處理和例外核准紀錄。"]]}, {"act": "cell:2:faults", "say": "最常見的是只監控不阻擋，事件也沒人審閱。還有USB例外開了一大堆，沒有期限，也沒人回收。", "audio": "audio/s06_09.mp3", "dur": 9.0, "cues": [[0.1, "最常見的是只監控不阻擋，事件也沒人審閱。"], [4.229, "還有USB例外開了一大堆，沒有期限，也沒人回收。"]]}]}, {"type": "controls", "title": "使用（二）", "phases": [3], "controls": [{"id": "8.11", "name": "資料遮蔽", "ops": ["依存取控制政策與法規決定遮罩、假名化或匿名化", "涵蓋畫面、報表、匯出檔與日誌"], "audit": ["實際操作系統，檢查畫面與匯出檔", "確認誰有權限檢視完整資料"], "faults": ["畫面有遮蔽，匯出 Excel 卻是全碼", "日誌、除錯訊息留存明文個資"]}, {"id": "8.33", "name": "測試資訊", "ops": ["測試資料應適當選擇、保護與管理", "使用正式資料須經核准、去識別化，測試後刪除"], "audit": ["測試環境資料來源與核准紀錄", "測試後刪除紀錄與測試環境權限"], "faults": ["正式資料庫直接複製到測試環境", "開發商、委外人員可任意存取測試資料"]}, {"id": "8.34", "name": "稽核測試期間資訊系統之保護", "ops": ["稽核與技術測試（弱掃、滲透測試）事前規劃並經核准", "唯讀、最小權限、避開尖峰；結束後移除帳號與工具"], "audit": ["測試計畫、核准紀錄、實際執行時段", "測試帳號是否停用、工具是否移除"], "faults": ["未經核准於上班時段掃描，造成服務中斷", "稽核用帳號測試完未停用"]}], "segs": [{"act": "cell:0:ops", "say": "8.11資料遮蔽，要依存取控制政策和法規，決定用遮罩、假名化還是匿名化。範圍不只是畫面，報表、匯出檔和日誌都要考慮。", "audio": "audio/s07_01.mp3", "dur": 11.808, "cues": [[0.1, "8.11資料遮蔽，要依存取控制政策和法規，決定用遮罩、假名化還是匿名化。"], [7.026, "範圍不只是畫面，報表、匯出檔和日誌都要考慮。"]]}, {"act": "cell:0:audit", "say": "這一項我一定實際操作系統，看畫面，也看匯出的檔案，順便確認誰有權限看到完整資料。", "audio": "audio/s07_02.mp3", "dur": 7.512, "cues": [[0.1, "這一項我一定實際操作系統，看畫面，也看匯出的檔案，順便確認誰有權限看到完整資料。"]]}, {"act": "cell:0:faults", "say": "經典缺失：畫面上身分證字號有遮蔽，一匯出Excel卻是全碼。另外，日誌和除錯訊息留下明文個資，也非常常見。", "audio": "audio/s07_03.mp3", "dur": 10.704, "cues": [[0.1, "經典缺失：畫面上身分證字號有遮蔽，一匯出Excel卻是全碼。"], [5.574, "另外，日誌和除錯訊息留下明文個資，也非常常見。"]]}, {"act": "cell:1:ops", "say": "8.33測試資訊，測試資料要適當選擇、保護和管理。如果一定要用正式資料，要經過核准、去識別化，測試完就刪除。", "audio": "audio/s07_04.mp3", "dur": 11.424, "cues": [[0.1, "8.33測試資訊，測試資料要適當選擇、保護和管理。"], [5.36, "如果一定要用正式資料，要經過核准、去識別化，測試完就刪除。"]]}, {"act": "cell:1:audit", "say": "稽核時問清楚，測試環境的資料從哪裡來、誰核准的，再看測試後的刪除紀錄，和測試環境的權限。", "audio": "audio/s07_05.mp3", "dur": 8.448, "cues": [[0.1, "稽核時問清楚，測試環境的資料從哪裡來、誰核准的，再看測試後的刪除紀錄，和測試環境的權限。"]]}, {"act": "cell:1:faults", "say": "常見缺失，就是把正式資料庫整個複製到測試環境，而且開發商、委外人員都可以隨意存取。", "audio": "audio/s07_06.mp3", "dur": 7.584, "cues": [[0.1, "常見缺失，就是把正式資料庫整個複製到測試環境，而且開發商、委外人員都可以隨意存取。"]]}, {"act": "cell:2:ops", "say": "8.34稽核測試期間資訊系統之保護。不管是稽核，還是弱點掃描、滲透測試，都要事前規劃並經核准。用唯讀、最小權限，避開營運尖峰，結束後移除帳號和工具。", "audio": "audio/s07_07.mp3", "dur": 16.08, "cues": [[0.1, "8.34稽核測試期間資訊系統之保護。"], [4.038, "不管是稽核，還是弱點掃描、滲透測試，都要事前規劃並經核准。"], [10.252, "用唯讀、最小權限，避開營運尖峰，結束後移除帳號和工具。"]]}, {"act": "cell:2:audit", "say": "查核時看測試計畫、核准紀錄和實際執行時段，並確認測試帳號已經停用。", "audio": "audio/s07_08.mp3", "dur": 6.744, "cues": [[0.1, "查核時看測試計畫、核准紀錄和實際執行時段，並確認測試帳號已經停用。"]]}, {"act": "cell:2:faults", "say": "常見缺失是沒經核准，就在上班時間掃描，造成服務中斷。或者稽核用的帳號，測試完一直沒有停用。", "audio": "audio/s07_09.mp3", "dur": 9.6, "cues": [[0.1, "常見缺失是沒經核准，就在上班時間掃描，造成服務中斷。"], [5.514, "或者稽核用的帳號，測試完一直沒有停用。"]]}]}, {"type": "controls", "title": "儲存與存取", "phases": [4, 5], "controls": [{"id": "5.14", "name": "資訊傳送", "ops": ["訂定電子、實體、口頭傳送的規則與協議", "機密資料加密傳輸；實體寄送封緘可追蹤；與外部簽傳送協議"], "audit": ["抽查機密資料傳送方式：加密郵件、SFTP", "密碼是否另途通知；實體交寄紀錄"], "faults": ["加密壓縮檔的密碼寫在同一封信", "用個人通訊軟體傳機密；仍用明文 FTP"]}, {"id": "5.33", "name": "紀錄之保護", "ops": ["依法規、契約定義紀錄類型與保存期限", "防竄改、防遺失、防未授權存取，並確保長期可讀"], "audit": ["保存清單與期限是否符合法規", "抽調舊紀錄；檢查日誌完整性保護"], "faults": ["保存期限未定義，或與法規要求不符", "紀錄存在個人電腦；舊格式已無法開啟"]}], "segs": [{"act": "cell:0:ops", "say": "接著是儲存與存取。5.14資訊傳送，要把電子、實體，甚至口頭傳送的規則都訂出來。機密資料要加密傳輸，實體寄送要封緘、可追蹤，和外部單位往來，要簽訂傳送協議。", "audio": "audio/s08_01.mp3", "dur": 16.584, "cues": [[0.1, "接著是儲存與存取。"], [2.705, "5.14資訊傳送，要把電子、實體，甚至口頭傳送的規則都訂出來。"], [9.229, "機密資料要加密傳輸，實體寄送要封緘、可追蹤，和外部單位往來，要簽訂傳送協議。"]]}, {"act": "cell:0:audit", "say": "查核時抽幾筆機密資料的傳送，看是用加密郵件還是SFTP，密碼有沒有用另外的管道通知，實體寄送有沒有交寄紀錄。", "audio": "audio/s08_02.mp3", "dur": 9.288, "cues": [[0.1, "查核時抽幾筆機密資料的傳送，看是用加密郵件還是SFTP，密碼有沒有用另外的管道通知，實體寄送有沒有交寄紀錄。"]]}, {"act": "cell:0:faults", "say": "大家一定看過：加密壓縮檔，密碼就寫在同一封信裡面。還有用個人通訊軟體傳機密資料，或是還在用明文的FTP。", "audio": "audio/s08_03.mp3", "dur": 10.056, "cues": [[0.1, "大家一定看過：加密壓縮檔，密碼就寫在同一封信裡面。"], [5.276, "還有用個人通訊軟體傳機密資料，或是還在用明文的FTP。"]]}, {"act": "cell:1:ops", "say": "5.33紀錄之保護，要依法規和契約定義有哪些紀錄、保存多久，並且防竄改、防遺失、防止未授權存取，還要確保多年之後還讀得出來。", "audio": "audio/s08_04.mp3", "dur": 11.352, "cues": [[0.1, "5.33紀錄之保護，要依法規和契約定義有哪些紀錄、保存多久，並且防竄改、防遺失、防止未授權存取，還要確保多年之後還讀得出來。"]]}, {"act": "cell:1:audit", "say": "稽核時看紀錄保存清單和期限是否符合法規，抽調一筆幾年前的紀錄試試看，也檢查日誌有沒有完整性保護。", "audio": "audio/s08_05.mp3", "dur": 8.352, "cues": [[0.1, "稽核時看紀錄保存清單和期限是否符合法規，抽調一筆幾年前的紀錄試試看，也檢查日誌有沒有完整性保護。"]]}, {"act": "cell:1:faults", "say": "常見缺失是保存期限沒有定義，或跟法規不符；紀錄放在個人電腦；或者舊格式的檔案，已經打不開了。", "audio": "audio/s08_06.mp3", "dur": 8.568, "cues": [[0.1, "常見缺失是保存期限沒有定義，或跟法規不符；紀錄放在個人電腦；或者舊格式的檔案，已經打不開了。"]]}]}, {"type": "controls", "title": "銷毀", "phases": [6], "controls": [{"id": "8.10", "name": "資訊刪除", "ops": ["資訊不再需要時，刪除系統、裝置及儲存媒體中的資料", "依媒體與等級選方法：覆寫、消磁、物理破壞、加密抹除", "委外銷毀取得證明；雲端服務確認刪除承諾"], "audit": ["抽查報廢設備流程、銷毀紀錄與證明", "比對保存期限：屆期資料是否已刪除", "檢視委外及雲端合約的刪除條款"], "faults": ["報廢電腦硬碟未處理，直接交給回收商", "只做格式化或丟資源回收筒就當刪除", "超過保存期限的個資仍留在系統與備份"]}], "segs": [{"act": "cell:0:ops", "say": "最後一站，銷毀，對應8.10資訊刪除。資訊不再需要的時候，就要從系統、裝置和儲存媒體中刪除。方法要依媒體和等級選擇，像覆寫、消磁、物理破壞，或加密抹除。委外銷毀要取得證明，雲端服務要確認供應商的刪除承諾。", "audio": "audio/s09_01.mp3", "dur": 21.888, "cues": [[0.1, "最後一站，銷毀，對應8.10資訊刪除。"], [4.645, "資訊不再需要的時候，就要從系統、裝置和儲存媒體中刪除。"], [10.11, "方法要依媒體和等級選擇，像覆寫、消磁、物理破壞，或加密抹除。"], [16.871, "委外銷毀要取得證明，雲端服務要確認供應商的刪除承諾。"]]}, {"act": "cell:0:audit", "say": "稽核時抽查報廢設備的流程、銷毀紀錄和證明。我也會拿保存期限來比對，屆期的資料到底刪了沒有，再看委外和雲端合約裡的刪除條款。", "audio": "audio/s09_02.mp3", "dur": 11.808, "cues": [[0.1, "稽核時抽查報廢設備的流程、銷毀紀錄和證明。"], [4.776, "我也會拿保存期限來比對，屆期的資料到底刪了沒有，再看委外和雲端合約裡的刪除條款。"]]}, {"act": "cell:0:faults", "say": "常見缺失：報廢電腦的硬碟沒處理，直接交給回收商；以為格式化或丟進資源回收筒就算刪除；還有超過保存期限的個資，仍然躺在系統和備份裡。", "audio": "audio/s09_03.mp3", "dur": 11.256, "cues": [[0.1, "常見缺失：報廢電腦的硬碟沒處理，直接交給回收商；以為格式化或丟進資源回收筒就算刪除；還有超過保存期限的個資，仍然躺在系統和備份裡。"]]}]}, {"type": "trace", "title": "稽核技巧：一筆資料追到底", "phases": [0, 1, 2, 3, 4, 5, 6], "steps": [{"phase": "政策制定", "ctrl": "5.12 · 5.13 · 5.10 · 5.34", "q": "屬於哪一級？誰是擁有者？有標示嗎？"}, {"phase": "產生收集", "ctrl": "6.6", "q": "接觸的人都簽了保密協議嗎？簽在開權限之前嗎？"}, {"phase": "使用", "ctrl": "8.1 · 8.7 · 8.11 · 8.12 · 8.33 · 8.34", "q": "在哪些端點與系統處理？有遮蔽、DLP 嗎？測試環境有沒有它？"}, {"phase": "儲存存取", "ctrl": "5.14 · 5.33", "q": "怎麼傳出去？存在哪裡？保存多久？"}, {"phase": "銷毀", "ctrl": "8.10", "q": "到期怎麼刪？銷毀證明在哪裡？"}], "segs": [{"act": "step:-1", "say": "最後分享一個稽核技巧，我叫它「一筆資料追到底」。挑一筆重要資料，例如客戶個資，沿著生命週期一路問下去。", "audio": "audio/s10_01.mp3", "dur": 9.744, "cues": [[0.1, "最後分享一個稽核技巧，我叫它「一筆資料追到底」。"], [4.621, "挑一筆重要資料，例如客戶個資，沿著生命週期一路問下去。"]]}, {"act": "step:0", "say": "政策制定：這筆資料屬於哪一級？誰是擁有者？有沒有標示？", "audio": "audio/s10_02.mp3", "dur": 7.536, "cues": [[0.1, "政策制定：這筆資料屬於哪一級？"], [3.681, "誰是擁有者？"], [5.61, "有沒有標示？"]]}, {"act": "step:1", "say": "產生收集：接觸它的人都簽了保密協議嗎？是不是簽在開權限之前？", "audio": "audio/s10_03.mp3", "dur": 6.912, "cues": [[0.1, "產生收集：接觸它的人都簽了保密協議嗎？"], [4.038, "是不是簽在開權限之前？"]]}, {"act": "step:2", "say": "使用：在哪些端點和系統處理？有沒有遮蔽、有沒有DLP？測試環境裡是不是也有一份？", "audio": "audio/s10_04.mp3", "dur": 9.384, "cues": [[0.1, "使用：在哪些端點和系統處理？"], [3.61, "有沒有遮蔽、有沒有DLP？"], [6.49, "測試環境裡是不是也有一份？"]]}, {"act": "step:3", "say": "儲存存取：怎麼傳出去？存在哪裡？要保存多久？", "audio": "audio/s10_05.mp3", "dur": 6.888, "cues": [[0.1, "儲存存取：怎麼傳出去？"], [3.11, "存在哪裡？"], [4.931, "要保存多久？"]]}, {"act": "step:4", "say": "銷毀：到期之後怎麼刪？銷毀證明在哪裡？這樣一條線追下來，控制措施之間有沒有斷點，馬上就看得出來。", "audio": "audio/s10_06.mp3", "dur": 10.968, "cues": [[0.1, "銷毀：到期之後怎麼刪？"], [3.038, "銷毀證明在哪裡？"], [5.324, "這樣一條線追下來，控制措施之間有沒有斷點，馬上就看得出來。"]]}]}, {"type": "summary", "title": "課程總結", "phases": [0, 1, 2, 3, 4, 5, 6], "mantra": [{"w": "先分級", "s": "政策制定"}, {"w": "簽保密", "s": "產生收集"}, {"w": "用得穩", "s": "使用"}, {"w": "傳存好", "s": "儲存存取"}, {"w": "刪乾淨", "s": "銷毀"}], "segs": [{"act": "mantra", "say": "總結一下資訊保護的口訣：先分級、簽保密、用得穩、傳存好、刪乾淨。", "audio": "audio/s11_01.mp3", "dur": 7.152, "cues": [[0.1, "總結一下資訊保護的口訣：先分級、簽保密、用得穩、傳存好、刪乾淨。"]]}, {"act": "bye", "say": "記住，稽核看的不是文件寫了什麼，而是資訊在每一個階段，有沒有真的被保護。我是Allan Lo，我們下堂課見！", "audio": "audio/s11_02.mp3", "dur": 9.6, "cues": [[0.1, "記住，稽核看的不是文件寫了什麼，而是資訊在每一個階段，有沒有真的被保護。"], [6.574, "我是Allan Lo，我們下堂課見！"]]}]}]};
+const PHASES = ["政策制定", "產生", "收集", "使用", "儲存", "存取", "銷毀"];
+const RECORD = location.hash === "#record";
+if (RECORD) document.body.classList.add("record");
+const $ = (id) => document.getElementById(id);
+const stage = $("stage"), content = $("content"), allanEl = $("allan"), subText = $("subText");
+
+const ICON = {
+  ops: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 12.5l2 2 4.5-4.5M8.5 18h7"/></svg>',
+  audit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>',
+  faults: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>',
+  play: '<path d="M7 4v16l13-8z"/>',
+  pause: '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>'
+};
+const FACET = { ops: "ISMS作業重點", audit: "稽核查核重點", faults: "常見缺失" };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ── Q版 Allan Lo ── */
+allanEl.innerHTML = `
+<svg viewBox="0 0 220 300">
+  <ellipse cx="110" cy="291" rx="62" ry="8" fill="#000" opacity=".16"/>
+  <rect x="83" y="238" width="22" height="44" rx="9" fill="#2a3040"/>
+  <rect x="115" y="238" width="22" height="44" rx="9" fill="#2a3040"/>
+  <ellipse cx="92" cy="283" rx="18" ry="8" fill="#17181d"/>
+  <ellipse cx="128" cy="283" rx="18" ry="8" fill="#17181d"/>
+  <path d="M60 250 Q57 186 86 168 L134 168 Q163 186 160 250 Q110 262 60 250Z" fill="#2c4372"/>
+  <path d="M94 168 L110 206 L126 168Z" fill="#fff"/>
+  <path d="M106 173 L114 173 L117 181 L113.5 214 L110 220 L106.5 214 L103 181Z" fill="#d0473a"/>
+  <path d="M94 168 L105 202 L86 184Z" fill="#22365f"/>
+  <path d="M126 168 L115 202 L134 184Z" fill="#22365f"/>
+  <rect x="129" y="203" width="25" height="13" rx="2" fill="#fff"/>
+  <text x="141.5" y="212.3" font-size="6.6" font-weight="700" text-anchor="middle" fill="#2c4372" font-family="sans-serif">ALLAN</text>
+  <path d="M68 186 Q50 206 57 236" stroke="#2c4372" stroke-width="19" fill="none" stroke-linecap="round"/>
+  <circle cx="57" cy="240" r="9.5" fill="#ffd9b8"/>
+  <g id="armR">
+    <line x1="164" y1="238" x2="214" y2="168" stroke="#8a5a2b" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="214" cy="168" r="5" fill="#e0483a"/>
+    <path d="M152 186 Q170 206 165 234" stroke="#2c4372" stroke-width="19" fill="none" stroke-linecap="round"/>
+    <circle cx="164" cy="239" r="9.5" fill="#ffd9b8"/>
+  </g>
+  <rect x="99" y="150" width="22" height="20" rx="6" fill="#f2c39d"/>
+  <g id="head">
+    <ellipse cx="42" cy="106" rx="11" ry="14" fill="#f7cba6"/>
+    <ellipse cx="178" cy="106" rx="11" ry="14" fill="#f7cba6"/>
+    <ellipse cx="110" cy="100" rx="69" ry="63" fill="#ffd9b8"/>
+    <path d="M41 104 Q34 40 100 30 Q166 24 180 84 Q182 98 178 108 Q172 74 146 62 Q124 78 80 70 Q58 76 50 108Z" fill="#25211f"/>
+    <path d="M80 70 Q104 44 146 62 Q120 58 98 76Z" fill="#3a3330"/>
+    <path d="M68 84 Q81 77 95 83" stroke="#25211f" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <path d="M125 83 Q139 77 152 84" stroke="#25211f" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <g id="eyes">
+      <ellipse cx="82" cy="104" rx="5.5" ry="7" fill="#1c1c22"/>
+      <ellipse cx="138" cy="104" rx="5.5" ry="7" fill="#1c1c22"/>
+      <circle cx="84" cy="101" r="2" fill="#fff"/>
+      <circle cx="140" cy="101" r="2" fill="#fff"/>
+    </g>
+    <rect x="62" y="89" width="40" height="30" rx="11" fill="#fff" fill-opacity=".18" stroke="#1f1f26" stroke-width="3.6"/>
+    <rect x="118" y="89" width="40" height="30" rx="11" fill="#fff" fill-opacity=".18" stroke="#1f1f26" stroke-width="3.6"/>
+    <path d="M102 101 Q110 96 118 101" stroke="#1f1f26" stroke-width="3.2" fill="none"/>
+    <path d="M62 99 L45 95 M158 99 L175 95" stroke="#1f1f26" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="70" cy="128" rx="10" ry="5.5" fill="#ff9a86" opacity=".5"/>
+    <ellipse cx="150" cy="128" rx="10" ry="5.5" fill="#ff9a86" opacity=".5"/>
+    <path id="mouthClosed" d="M97 131 Q110 142 123 131" stroke="#7a3326" stroke-width="3.8" fill="none" stroke-linecap="round"/>
+    <g id="mouthOpen" style="display:none">
+      <path d="M96 129 Q110 154 124 129Z" fill="#7a2a24"/>
+      <ellipse cx="110" cy="143" rx="7" ry="4" fill="#ea6c6a"/>
+    </g>
+  </g>
+</svg>`;
+const mouthOpen = $("mouthOpen"), mouthClosed = $("mouthClosed");
+let flapTimer = null;
+function setTalking(on) {
+  allanEl.classList.toggle("talking", on);
+  clearInterval(flapTimer);
+  if (!on) { mouthOpen.style.display = "none"; mouthClosed.style.display = ""; return; }
+  flapTimer = setInterval(() => {
+    const open = Math.random() > 0.28;
+    mouthOpen.style.display = open ? "" : "none";
+    mouthClosed.style.display = open ? "none" : "";
+    mouthOpen.style.transform = `scaleY(${(0.35 + Math.random() * 0.65).toFixed(2)})`;
+  }, 115);
+}
+let pointTimer = null;
+function gesture() {
+  allanEl.classList.add("point");
+  clearTimeout(pointTimer);
+  pointTimer = setTimeout(() => allanEl.classList.remove("point"), 1500);
+}
+
+/* ── rail ── */
+$("rail").innerHTML = PHASES.map((p, i) => (i ? '<span class="bar"></span>' : "") + `<div class="node" data-i="${i}"><span class="dot"></span>${p}</div>`).join("");
+
+/* ── slide renderers ── */
+function renderCover(s) {
+  return `<div class="cover">
+    <div class="txt">
+      <div class="eyebrow">ISO/IEC 27001:2022 · Annex A · Operational capabilities</div>
+      <h2><span>資訊保護</span><br>生命週期</h2>
+      <p class="sub">${esc(DATA.meta.subtitle)}</p>
+      <div class="facets">
+        <span class="facet ops">${ICON.ops}${FACET.ops}</span>
+        <span class="facet audit">${ICON.audit}${FACET.audit}</span>
+        <span class="facet faults">${ICON.faults}${FACET.faults}</span>
+      </div>
+      <button class="start-btn" id="startBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>開始上課</button>
+    </div>
+    <div class="loop"><b>政策</b><i></i><b>產生</b><i></i><b>使用</b><i></i><b>儲存</b><i></i><b>銷毀</b></div>
+  </div>`;
+}
+
+function renderControls(s) {
+  let h = `<div class="ctable n${s.controls.length}"><div class="chead blank"></div>`;
+  for (const f of ["ops", "audit", "faults"]) h += `<div class="chead ${f}">${ICON[f]}${FACET[f]}</div>`;
+  s.controls.forEach((c, r) => {
+    h += `<div class="cid" data-r="${r}"><div class="num">${esc(c.id)}</div><div class="nm">${esc(c.name)}</div></div>`;
+    for (const f of ["ops", "audit", "faults"]) {
+      h += `<div class="cell ${f}" data-cell="${r}:${f}"><ul>${c[f].map((t) => `<li>${esc(t)}</li>`).join("")}</ul>${f === "faults" ? '<span class="stamp">缺失!</span>' : ""}</div>`;
+    }
+  });
+  return h + "</div>";
+}
+
+function renderLifecycle() {
+  const ring = (x, y, label) => `<circle class="ring" cx="${x}" cy="${y}" r="47" fill="#fff" stroke="var(--ring)" stroke-width="10"/><text x="${x}" y="${y + 8}" text-anchor="middle" font-size="23" font-weight="900">${label}</text>`;
+  const lines = (x, y, arr, size = 17, anchor = "start") => arr.map((t, i) => `<text x="${x}" y="${y + i * (size + 9)}" font-size="${size}" font-weight="700" text-anchor="${anchor}">${t}</text>`).join("");
+  return `<div class="lc" style="height:100%"><svg viewBox="0 0 1000 524" role="img" aria-label="資訊保護生命週期流程圖">
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--band)"/></marker></defs>
+    <g class="g" data-g="band">
+      <path d="M90 236 H912" stroke="var(--band)" stroke-width="30" fill="none"/>
+      <path d="M752 236 V452 H90 V306" stroke="var(--band)" stroke-width="30" fill="none" marker-end="url(#ah)"/>
+      <path class="flow" d="M90 236 H912 M752 236 V452 H90 V300" stroke="#fff" stroke-opacity=".55" stroke-width="5" fill="none"/>
+    </g>
+    <g class="g" data-g="policy">
+      <rect class="policy-box" x="14" y="6" width="500" height="146" rx="8" fill="#fff" stroke="var(--band)" stroke-width="2" stroke-dasharray="6 5"/>
+      <text x="40" y="50" font-size="22" font-weight="900" fill="var(--band)" style="fill:var(--band)">政策</text>
+      <text x="40" y="78" font-size="22" font-weight="900" style="fill:var(--band)">制定</text>
+      ${lines(110, 40, ["5.12 資訊之分類分級", "5.13 資訊之標示", "5.10 可接受使用資訊及其他相關聯資產", "5.34 隱私及 PII 保護"], 19)}
+    </g>
+    <g class="g" data-g="create">${ring(90, 236, "產生")}${ring(250, 236, "收集")}
+      <rect x="128" y="300" width="190" height="64" rx="10" fill="var(--ops-bg)"/>
+      ${lines(146, 328, ["6.6 機密性或", "　　保密協議"], 17)}
+    </g>
+    <g class="g" data-g="use">${ring(470, 236, "使用")}
+      <rect x="352" y="296" width="330" height="140" rx="10" fill="var(--ops-bg)"/>
+      ${lines(368, 320, ["8.1 使用者端點裝置", "8.7 防範惡意軟體", "8.11 資料遮蔽"], 16)}
+      ${lines(528, 320, ["8.12 資料洩漏預防", "8.33 測試資訊", "8.34 稽核測試期間之保護"], 16)}
+    </g>
+    <g class="g" data-g="store">${ring(700, 236, "儲存")}${ring(752, 452, "存取")}
+      <rect x="784" y="300" width="184" height="64" rx="10" fill="var(--ops-bg)"/>
+      ${lines(798, 326, ["5.14 資訊傳送", "5.33 紀錄之保護"], 17)}
+    </g>
+    <g class="g" data-g="destroy">${ring(912, 236, "銷毀")}
+      <text x="912" y="168" font-size="18" font-weight="700" text-anchor="middle">8.10 資訊刪除</text>
+    </g>
+  </svg></div>`;
+}
+
+function renderTrace(s) {
+  return `<div class="trace">
+    <p class="lead">挑一筆重要資料（例：客戶個資），沿生命週期逐站提問，找出控制措施之間的斷點。</p>
+    <div class="lane" id="lane">
+      <div class="token" id="token"><svg viewBox="0 0 64 76"><path d="M4 4h38l18 18v50H4z" fill="#fff" stroke="#1a2643" stroke-width="3.5" stroke-linejoin="round"/><path d="M42 4v18h18" fill="none" stroke="#1a2643" stroke-width="3.5" stroke-linejoin="round"/><path d="M14 36h36M14 46h36M14 56h24" stroke="#4472c4" stroke-width="4" stroke-linecap="round"/></svg><span>客戶個資</span></div>
+      ${s.steps.map((st, i) => `<div class="step" data-step="${i}"><div class="ringdot">${i + 1}</div><div class="ph">${esc(st.phase)}</div><div class="ctl">${esc(st.ctrl)}</div><div class="q">${esc(st.q)}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderSummary(s) {
+  return `<div class="summary">
+    <div class="mantra">${s.mantra.map((m, i) => `<div class="mt" style="transition-delay:${i * 0.35}s"><div class="w">${esc(m.w)}</div><div class="s">${esc(m.s)}</div></div>`).join("")}</div>
+    <div class="bye">稽核看的不是文件寫了什麼，而是資訊在每一個階段，<b>有沒有真的被保護</b>。我們下堂課見！</div>
+  </div>`;
+}
+
+const RENDER = { cover: renderCover, controls: renderControls, lifecycle: renderLifecycle, trace: renderTrace, summary: renderSummary };
+
+/* ── state per slide: apply acts 0..upto (upto = Infinity → fully revealed, no focus) ── */
+function applyState(s, upto) {
+  const acts = s.segs.map((g) => g.act || "");
+  const done = upto === Infinity ? acts : acts.slice(0, upto + 1);
+  const cur = upto === Infinity ? null : acts[upto];
+  if (s.type === "controls") {
+    content.querySelectorAll(".cell").forEach((c) => {
+      const key = "cell:" + c.dataset.cell;
+      c.classList.toggle("off", !done.includes(key));
+      c.classList.toggle("now", key === cur);
+      c.classList.toggle("seen", done.includes(key));
+    });
+    const row = cur ? cur.split(":")[1] : null;
+    content.querySelectorAll(".cid").forEach((c) => c.classList.toggle("live", c.dataset.r === row));
+  } else if (s.type === "lifecycle") {
+    const shown = done.map((a) => a.replace("lc:", ""));
+    content.querySelectorAll(".g").forEach((g) => {
+      const k = g.dataset.g;
+      const vis = k === "band" ? shown.length > 0 : shown.includes(k);
+      g.classList.toggle("dim", !vis);
+      g.classList.toggle("now", cur === "lc:" + k);
+    });
+  } else if (s.type === "trace") {
+    const n = upto === Infinity ? s.steps.length - 1 : Math.max(-1, ...done.map((a) => +a.split(":")[1]));
+    const curStep = cur ? +cur.split(":")[1] : -2;
+    content.querySelectorAll(".step").forEach((el) => {
+      const i = +el.dataset.step;
+      el.classList.toggle("off", i > n);
+      el.classList.toggle("now", i === curStep);
+    });
+    moveToken(n);
+  } else if (s.type === "summary") {
+    content.querySelectorAll(".mt").forEach((m) => { m.classList.toggle("off", !done.includes("mantra")); m.classList.toggle("on", done.includes("mantra")); });
+    content.querySelector(".bye").classList.toggle("off", !done.includes("bye"));
+    allanEl.classList.toggle("wave", cur === "bye");
+  }
+}
+function moveToken(n) {
+  const lane = $("lane"), tok = $("token");
+  if (!lane || !tok) return;
+  const col = (lane.clientWidth - 16 * 4) / 5;
+  const x = n < 0 ? -10 : n * (col + 16) + col / 2 - 60;
+  tok.style.transform = `translateX(${x}px)`;
+}
+
+/* ── player ── */
+let si = 0, gi = -1, playing = false, segTimer = null, gapTimer = null, segStart = 0, rafId = 0;
+const audio = new Audio();
+audio.preload = "auto";
+let subsOn = true;
+
+function renderSlide(i) {
+  si = i;
+  const s = DATA.slides[i];
+  stage.dataset.type = s.type;
+  $("slideTitle").textContent = s.title || DATA.meta.title;
+  content.innerHTML = RENDER[s.type](s);
+  document.querySelectorAll(".rail .node").forEach((n) => n.classList.toggle("on", (s.phases || []).includes(+n.dataset.i)));
+  allanEl.classList.remove("wave", "point");
+  $("count").textContent = `${i + 1} / ${DATA.slides.length}`;
+  document.querySelectorAll("#dots button").forEach((b, k) => b.classList.toggle("cur", k === i));
+  const sb = $("startBtn");
+  if (sb) sb.addEventListener("click", () => play());
+  if (location.hash !== "#record") { try { history.replaceState(null, "", i ? "#s" + (i + 1) : location.pathname); } catch (e) {} }
+}
+
+function setSub(text) { subText.textContent = text; }
+
+function tickSubs() {
+  const seg = DATA.slides[si].segs[gi];
+  if (!seg) return;
+  const t = RECORD ? (performance.now() - segStart) / 1000 : audio.currentTime;
+  let cue = seg.cues[0];
+  for (const c of seg.cues) if (c[0] <= t + 0.05) cue = c;
+  if (cue && subText.textContent !== cue[1]) setSub(cue[1]);
+  rafId = requestAnimationFrame(tickSubs);
+}
+
+function playSeg() {
+  const s = DATA.slides[si], seg = s.segs[gi];
+  applyState(s, gi);
+  if (s.type !== "cover") gesture();
+  $("bubble").classList.toggle("show", s.type === "cover" && gi === 0);
+  setSub(seg.cues[0] ? seg.cues[0][1] : seg.say);
+  cancelAnimationFrame(rafId);
+  if (RECORD) {
+    window.__log.push({ audio: seg.audio, t: Date.now() });
+    segStart = performance.now();
+    setTalking(true);
+    segTimer = setTimeout(onSegEnd, seg.dur * 1000);
+    rafId = requestAnimationFrame(tickSubs);
+    return;
+  }
+  audio.src = seg.audio;
+  audio.play().then(() => { rafId = requestAnimationFrame(tickSubs); }).catch(() => speakFallback(seg));
+}
+
+/* 若音檔無法播放，改用瀏覽器內建的台灣中文語音 */
+function speakFallback(seg) {
+  if (!("speechSynthesis" in window)) { segTimer = setTimeout(onSegEnd, seg.dur * 1000); return; }
+  const u = new SpeechSynthesisUtterance(seg.say);
+  const v = speechSynthesis.getVoices().find((v) => /zh[-_]TW/i.test(v.lang));
+  if (v) u.voice = v;
+  u.lang = "zh-TW";
+  u.onstart = () => setTalking(true);
+  u.onend = () => { setTalking(false); if (playing) onSegEnd(); };
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+function onSegEnd() {
+  setTalking(false);
+  cancelAnimationFrame(rafId);
+  if (!playing) return;
+  const s = DATA.slides[si];
+  if (gi + 1 < s.segs.length) {
+    gapTimer = setTimeout(() => { gi++; playSeg(); }, 380);
+  } else if (si + 1 < DATA.slides.length) {
+    gapTimer = setTimeout(() => { renderSlide(si + 1); gi = 0; gapTimer = setTimeout(playSeg, 600); }, 900);
+  } else {
+    playing = false;
+    updatePlayBtn();
+    applyState(s, Infinity);
+    if (RECORD) gapTimer = setTimeout(() => { window.__done = true; }, 1500);
+  }
+}
+
+audio.addEventListener("playing", () => setTalking(true));
+audio.addEventListener("pause", () => setTalking(false));
+audio.addEventListener("ended", onSegEnd);
+audio.addEventListener("error", () => { if (playing && gi >= 0) speakFallback(DATA.slides[si].segs[gi]); });
+
+function stopAll() {
+  clearTimeout(segTimer); clearTimeout(gapTimer); cancelAnimationFrame(rafId);
+  audio.pause();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  setTalking(false);
+}
+function play() {
+  if (playing) return;
+  playing = true; updatePlayBtn();
+  const s = DATA.slides[si];
+  if (gi >= 0 && gi < s.segs.length && audio.src && audio.currentTime > 0 && !audio.ended) {
+    audio.play().then(() => { rafId = requestAnimationFrame(tickSubs); }).catch(() => speakFallback(s.segs[gi]));
+  } else {
+    gi = 0; playSeg();
+  }
+}
+function pause() { playing = false; updatePlayBtn(); stopAll(); }
+function go(i) {
+  if (i < 0 || i >= DATA.slides.length) return;
+  const was = playing;
+  stopAll(); audio.removeAttribute("src"); audio.load();
+  renderSlide(i); gi = -1;
+  if (was) { gi = 0; playSeg(); }
+  else { applyState(DATA.slides[i], Infinity); setSub("（已暫停）按下播放，Allan 老師從這一頁開始講解。"); }
+}
+function updatePlayBtn() {
+  $("icoPlay").innerHTML = playing ? ICON.pause : ICON.play;
+  $("playLbl").textContent = playing ? "暫停" : "播放";
+}
+
+/* ── dock ── */
+$("dots").innerHTML = DATA.slides.map((s, i) => `<button aria-label="第 ${i + 1} 頁：${esc(s.title || DATA.meta.title)}" title="${esc(s.title || DATA.meta.title)}"></button>`).join("");
+document.querySelectorAll("#dots button").forEach((b, i) => b.addEventListener("click", () => go(i)));
+$("btnPrev").addEventListener("click", () => go(si - 1));
+$("btnNext").addEventListener("click", () => go(si + 1));
+$("btnPlay").addEventListener("click", () => (playing ? pause() : play()));
+$("btnSub").addEventListener("click", (e) => { subsOn = !subsOn; $("subs").classList.toggle("off", !subsOn); e.currentTarget.setAttribute("aria-pressed", subsOn); });
+$("btnFull").addEventListener("click", () => {
+  const el = document.documentElement;
+  try { document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(() => {}); } catch (e) {}
+});
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("button") && (e.key === " " || e.key === "Enter")) return;
+  if (e.key === " ") { e.preventDefault(); playing ? pause() : play(); }
+  else if (e.key === "ArrowRight" || e.key === "PageDown") go(si + 1);
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") go(si - 1);
+  else if (e.key === "c" || e.key === "C") $("btnSub").click();
+  else if (e.key === "f" || e.key === "F") $("btnFull").click();
+});
+
+/* ── scale stage to fit ── */
+function fit() {
+  const vp = $("viewport"), wrap = $("stageWrap");
+  const k = RECORD ? 1 : Math.min(vp.clientWidth / 1280, vp.clientHeight / 720);
+  stage.style.transform = `scale(${k})`;
+  wrap.style.width = 1280 * k + "px";
+  wrap.style.height = 720 * k + "px";
+  if (DATA.slides[si].type === "trace") applyState(DATA.slides[si], playing ? gi : Infinity);
+}
+window.addEventListener("resize", fit);
+
+/* ── boot ── */
+const start = Math.max(0, Math.min(DATA.slides.length - 1, (+(location.hash.match(/^#s(\d+)$/) || [])[1] || 1) - 1));
+renderSlide(start);
+applyState(DATA.slides[start], Infinity);
+fit();
+if (RECORD) {
+  window.__log = [];
+  const cur = document.createElement("div"); cur.id = "curtain"; document.body.appendChild(cur);
+  window.__startRecord = () => { cur.remove(); window.__t0 = Date.now(); playing = true; gi = 0; gapTimer = setTimeout(playSeg, 1200); };
+}
+</script>
+
+</html>
