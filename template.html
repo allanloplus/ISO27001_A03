@@ -35,6 +35,7 @@
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   color-scheme: dark;
 }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -55,6 +56,7 @@ body {
 body.record .app { padding: 0; }
 body.record #stage { border-radius: 0; box-shadow: none; }
 #curtain { position: fixed; inset: 0; background: #000; z-index: 99; }
+body.record .chapters, body.record .chap-scrim,
 body.record .dock, body.record .start-btn { display: none !important; }
 
 /* ── top bar ── */
@@ -251,6 +253,39 @@ body.record .dock, body.record .start-btn { display: none !important; }
 .why { margin-top: auto; font: 700 15px/1.5 var(--body); color: var(--good); opacity: 0; transition: opacity .4s .2s; }
 .qz.ans .why { opacity: 1; }
 
+/* ── chapter drawer ── */
+.chap-scrim { position: absolute; inset: 0; background: rgba(13, 24, 48, .45); z-index: 20; }
+.chapters { position: absolute; top: 0; right: 0; bottom: 0; width: 470px; z-index: 21; display: flex; flex-direction: column; background: var(--white); color: var(--ink); box-shadow: -18px 0 40px rgba(13, 24, 48, .3); animation: slidein .35s cubic-bezier(.2, .8, .2, 1); }
+@keyframes slidein { from { transform: translateX(40px); opacity: 0 } to { transform: none; opacity: 1 } }
+.chap-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 22px 14px 26px; border-bottom: 1px solid var(--line); }
+.chap-head h2 { margin: 0; font: 900 24px/1.2 var(--display); }
+.chap-head p { margin: 6px 0 0; font: 500 14px/1.4 var(--body); color: var(--muted); }
+.chap-close { width: 40px; height: 40px; border: 0; border-radius: 10px; background: var(--paper); color: var(--ink); font: 700 22px/1 var(--body); cursor: pointer; }
+.chap-close:hover { background: var(--line); }
+.chap-list { flex: 1; overflow-y: auto; padding: 8px 14px 18px; }
+.chap-group { padding: 10px 0 4px; }
+.chap-group + .chap-group { border-top: 1px dashed var(--line); }
+.chap-gh { display: flex; align-items: center; gap: 10px; padding: 4px 10px 6px; font: 900 16px/1.2 var(--display); color: var(--band); }
+.chap-gh .gn { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 4px solid var(--ring); display: grid; place-items: center; font: 700 11px/1 var(--mono); color: var(--ink); box-sizing: border-box; }
+.chap-gh .gd { margin-left: auto; font: 700 12px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chap-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px 9px 46px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; font: 500 15px/1.4 var(--body); cursor: pointer; }
+.chap-item:hover { background: var(--ops-bg); }
+.chap-item:focus-visible { outline: 3px solid var(--hl); outline-offset: -3px; }
+.chap-item .pn { flex: none; width: 24px; font: 700 12px/1 var(--mono); color: var(--muted); }
+.chap-item .lb { flex: 1; min-width: 0; }
+.chap-item .du { flex: none; font: 500 12px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chap-item.cur { background: var(--ink); color: var(--white); }
+.chap-item.cur .pn, .chap-item.cur .du { color: var(--ring); }
+.chap-item .case-mark { display: inline-block; margin-right: 6px; padding: 2px 6px; border-radius: 4px; background: var(--amber); color: var(--white); font: 700 11px/1.2 var(--body); vertical-align: 1px; }
+.chap-item.cur .case-mark { background: var(--hl); color: var(--ink); }
+.cover .btns { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 34px; }
+.cover .btns .start-btn { margin-top: 0; }
+.ghost-btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 24px; border: 3px solid var(--ink); border-radius: 999px; background: var(--white); color: var(--ink); font: 900 19px/1 var(--display); cursor: pointer; }
+.ghost-btn:hover { background: var(--ops-bg); }
+.ghost-btn:focus-visible { outline: 4px solid var(--hl); outline-offset: 3px; }
+.ghost-btn svg { width: 20px; height: 20px; }
+body.record .ghost-btn { display: none; }
+
 /* ── dock (player controls, outside the stage) ── */
 .dock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .dock button { display: inline-flex; align-items: center; gap: 6px; height: 40px; min-width: 40px; padding: 0 12px; border: 1px solid #2e4170; border-radius: 10px; background: #172a52; color: #e8eef9; font: 700 14px/1 var(--body); cursor: pointer; }
@@ -280,6 +315,8 @@ body.record .dock, body.record .start-btn { display: none !important; }
           <div class="rail" id="rail" aria-label="生命週期階段"></div>
         </header>
         <main id="content"></main>
+        <div class="chap-scrim" id="chapScrim" hidden></div>
+        <aside class="chapters" id="chapters" hidden aria-label="課程章節"></aside>
         <div class="allan" id="allan" aria-hidden="true"></div>
         <div class="arale" id="arale" aria-hidden="true"></div>
         <footer class="subs" id="subs">
@@ -295,6 +332,7 @@ body.record .dock, body.record .start-btn { display: none !important; }
     <button id="btnNext" title="下一頁（→）"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg><span class="lbl">下一頁</span></button>
     <span class="count" id="count">1 / 1</span>
     <div class="dots" id="dots"></div>
+    <button id="btnCh" title="章節選單（M）" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5"/></svg><span class="lbl">章節</span></button>
     <button id="btnSub" aria-pressed="true" title="字幕（C）"><span>字幕</span></button>
     <button id="btnFull" title="全螢幕（F）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="lbl">全螢幕</span></button>
   </nav>
@@ -472,7 +510,10 @@ function renderCover(s) {
         <span class="facet audit">${ICON.audit}${FACET.audit}</span>
         <span class="facet faults">${ICON.faults}${FACET.faults}</span>
       </div>
-      <button class="start-btn" id="startBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>開始上課</button>
+      <div class="btns">
+        <button class="start-btn" id="startBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>開始上課</button>
+        <button class="ghost-btn" id="coverCh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5"/></svg>選擇章節</button>
+      </div>
     </div>
     <div class="loop"><b>政策</b><i></i><b>產生</b><i></i><b>使用</b><i></i><b>儲存</b><i></i><b>銷毀</b></div>
   </div>`;
@@ -641,6 +682,8 @@ function renderSlide(i) {
   $("count").textContent = `${i + 1} / ${DATA.slides.length}`;
   document.querySelectorAll("#dots button").forEach((b, k) => b.classList.toggle("cur", k === i));
   const sb = $("startBtn");
+  const cc = $("coverCh");
+  if (cc) cc.addEventListener("click", () => openChapters());
   if (sb) sb.addEventListener("click", () => play());
   if (location.hash !== "#record") { try { history.replaceState(null, "", i ? "#s" + (i + 1) : location.pathname); } catch (e) {} }
 }
@@ -741,6 +784,52 @@ function updatePlayBtn() {
   $("playLbl").textContent = playing ? "暫停" : "播放";
 }
 
+/* ── 章節選單 ── */
+const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+const slideSec = (s) => s.dur + 0.38 * (s.segs.length - 1) + 1.5;
+function buildChapters() {
+  const groups = [];
+  DATA.slides.forEach((s, i) => {
+    let g = groups[groups.length - 1];
+    if (!g || g.name !== s.chapter) groups.push((g = { name: s.chapter, items: [], sec: 0 }));
+    g.items.push(i); g.sec += slideSec(s);
+  });
+  const total = DATA.slides.reduce((a, s) => a + slideSec(s), 0);
+  $("chapters").innerHTML = `
+    <div class="chap-head"><div><h2>課程章節</h2><p>${groups.length} 個章節・${DATA.slides.length} 頁・約 ${Math.round(total / 60)} 分鐘｜點選後從該頁開始講解</p></div>
+      <button class="chap-close" id="chapClose" aria-label="關閉章節選單">×</button></div>
+    <div class="chap-list">${groups.map((g, k) => `
+      <div class="chap-group">
+        <div class="chap-gh"><span class="gn">${k + 1}</span>${esc(g.name)}<span class="gd">${fmt(g.sec)}</span></div>
+        ${g.items.map((i) => { const s = DATA.slides[i]; const isCase = s.type === "case";
+          const lb = isCase ? s.label.replace(/^案例[一二三四五六七八九十]+｜/, "") : s.label;
+          return `<button class="chap-item" data-i="${i}"><span class="pn">${String(i + 1).padStart(2, "0")}</span><span class="lb">${isCase ? `<span class="case-mark">${esc(s.title.replace("管理實務", ""))}</span>` : ""}${esc(lb)}</span><span class="du">${fmt(slideSec(s))}</span></button>`; }).join("")}
+      </div>`).join("")}</div>`;
+  $("chapClose").addEventListener("click", closeChapters);
+  $("chapters").querySelectorAll(".chap-item").forEach((b) => b.addEventListener("click", () => { closeChapters(); jump(+b.dataset.i); }));
+}
+function openChapters() {
+  $("chapters").querySelectorAll(".chap-item").forEach((b) => b.classList.toggle("cur", +b.dataset.i === si));
+  $("chapters").hidden = false; $("chapScrim").hidden = false;
+  $("btnCh").setAttribute("aria-expanded", "true");
+  const cur = $("chapters").querySelector(".chap-item.cur") || $("chapters").querySelector(".chap-item");
+  cur.scrollIntoView({ block: "center" }); cur.focus({ preventScroll: true });
+}
+function closeChapters() {
+  if ($("chapters").hidden) return;
+  $("chapters").hidden = true; $("chapScrim").hidden = true;
+  $("btnCh").setAttribute("aria-expanded", "false");
+}
+function toggleChapters() { $("chapters").hidden ? openChapters() : closeChapters(); }
+/* 跳到指定頁並從第一段開始講解 */
+function jump(i) {
+  stopAll(); audio.removeAttribute("src"); audio.load();
+  renderSlide(i); gi = 0; playing = true; updatePlayBtn(); playSeg();
+}
+buildChapters();
+$("chapScrim").addEventListener("click", closeChapters);
+$("btnCh").addEventListener("click", toggleChapters);
+
 /* ── dock ── */
 $("dots").innerHTML = DATA.slides.map((s, i) => `<button aria-label="第 ${i + 1} 頁：${esc(s.title || DATA.meta.title)}" title="${esc(s.title || DATA.meta.title)}"></button>`).join("");
 document.querySelectorAll("#dots button").forEach((b, i) => b.addEventListener("click", () => go(i)));
@@ -759,6 +848,8 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowLeft" || e.key === "PageUp") go(si - 1);
   else if (e.key === "c" || e.key === "C") $("btnSub").click();
   else if (e.key === "f" || e.key === "F") $("btnFull").click();
+  else if (e.key === "m" || e.key === "M") toggleChapters();
+  else if (e.key === "Escape") closeChapters();
 });
 
 /* ── scale stage to fit ── */

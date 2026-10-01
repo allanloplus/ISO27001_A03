@@ -30,6 +30,7 @@ const TMP = fs.mkdtempSync(path.join(require("os").tmpdir(), "rec-"));
   console.log(`recording ~${(total / 60).toFixed(1)} min of narration…`);
   await page.waitForFunction(() => window.__done === true, null, { timeout: 0, polling: 1000 });
   const log = await page.evaluate(() => window.__log);
+  const slides = await page.evaluate(() => DATA.slides.map((s) => ({ label: s.label, chapter: s.chapter })));
   const video = page.video();
   await ctx.close();
   await browser.close();
@@ -61,4 +62,17 @@ const TMP = fs.mkdtempSync(path.join(require("os").tmpdir(), "rec-"));
   ], { stdio: "inherit" });
   fs.rmSync(TMP, { recursive: true, force: true });
   console.log("saved", OUT);
+
+  // 每頁第一段旁白的時間（換頁動畫約提前 0.6 秒）→ 章節
+  const chapters = [];
+  log.forEach((e) => {
+    const si = +path.basename(e.audio).slice(1, 3) - 1;
+    if (chapters.some((c) => c.si === si)) return;
+    const { label, chapter } = slides[si];
+    chapters.push({ si, start: si ? Math.max(0, (e.t - t0) / 1000 - 0.6) : 0, group: chapter,
+      title: label.startsWith(chapter) ? label : `${chapter}｜${label}` });
+  });
+  fs.writeFileSync(path.join(path.dirname(OUT), "chapters.json"),
+    JSON.stringify(chapters.map(({ si, ...c }) => ({ ...c, start: +c.start.toFixed(2) })), null, 1));
+  execFileSync("python3", [path.join(__dirname, "add_chapters.py"), OUT], { stdio: "inherit" });
 })().catch((e) => { console.error(e); process.exit(1); });

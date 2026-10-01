@@ -49,6 +49,18 @@ def spoken(text: str) -> str:
     )
 
 
+def slide_label(slide) -> str:
+    """章節選單與 MP4 章節標記使用的頁面名稱。"""
+    t = slide["type"]
+    if t == "cover":
+        return "開場：講師與助教登場"
+    if t == "controls":
+        return f"{slide['title']} " + "・".join(c["id"] for c in slide["controls"])
+    if t == "case":
+        return f"{slide['title'].replace('管理實務', '')}｜{slide['case']['title']}"
+    return slide["title"]
+
+
 def sentences(text: str):
     return [s for s in re.findall(r"[^。！？]+[。！？]?", text) if s.strip()]
 
@@ -117,6 +129,8 @@ async def main(force: bool):
             seg["audio"] = f"audio/{name}"
             seg["dur"] = round(hit["dur"], 3)
             seg["cues"] = [[round(t, 3), s] for t, s in zip(marks, disp)]
+        slide["label"] = slide_label(slide)
+        slide["dur"] = round(sum(g["dur"] for g in slide["segs"]), 1)
 
     for fn in os.listdir(AUDIO_DIR):
         if fn.endswith(".mp3") and fn not in used:
