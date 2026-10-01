@@ -22,6 +22,11 @@
   --fault: #c4442d;
   --fault-bg: #fbe8e3;
   --hl: #ffcf3f;
+  --pink: #ff6f9a;
+  --pink-bg: #ffe8ef;
+  --amber: #d4861a;
+  --good: #4f9a35;
+  --good-bg: #e9f5e2;
   --white: #ffffff;
   --sub-bg: rgba(13, 24, 48, .9);
   --sub-fg: #f4f7fb;
@@ -65,19 +70,30 @@ body.record .dock, body.record .start-btn { display: none !important; }
 #stage[data-type="cover"] .topbar { display: none; }
 
 /* ── content ── */
-#content { position: absolute; left: 252px; right: 30px; top: 100px; bottom: 96px; }
+#content { position: absolute; left: 318px; right: 30px; top: 100px; bottom: 96px; }
 #stage[data-type="cover"] #content { left: 0; right: 0; top: 0; bottom: 78px; }
 
 /* ── subtitles ── */
-.subs { position: absolute; left: 0; right: 0; bottom: 0; height: 80px; background: var(--sub-bg); color: var(--sub-fg); display: flex; align-items: center; gap: 18px; padding: 0 34px 0 252px; }
-.subs .who { position: absolute; left: 26px; top: 50%; transform: translateY(-50%); font: 700 13px/1.3 var(--mono); color: var(--ring); letter-spacing: .08em; }
+.subs { position: absolute; left: 0; right: 0; bottom: 0; height: 80px; background: var(--sub-bg); color: var(--sub-fg); display: flex; align-items: center; gap: 18px; padding: 0 34px 0 196px; }
+.subs .who { position: absolute; left: 26px; width: 150px; top: 50%; transform: translateY(-50%); font: 700 13px/1.3 var(--mono); color: var(--ring); letter-spacing: .08em; }
+.subs[data-who="arale"] .who { color: var(--pink); }
 .subs .who small { display: block; font: 500 12px/1.3 var(--body); color: #b9c4dc; letter-spacing: 0; }
 #subText { font: 500 22px/1.45 var(--body); letter-spacing: .02em; text-wrap: balance; transition: opacity .2s; }
 .subs.off #subText { opacity: 0; }
 
 /* ── Allan ── */
-.allan { position: absolute; left: 14px; bottom: 76px; width: 226px; height: 308px; transition: all .8s cubic-bezier(.2, .8, .2, 1); z-index: 5; }
-#stage[data-type="cover"] .allan { left: 70px; bottom: 96px; width: 340px; height: 463px; }
+.allan { position: absolute; left: 0; bottom: 78px; width: 204px; height: 278px; transition: all .8s cubic-bezier(.2, .8, .2, 1); z-index: 5; }
+#stage[data-type="cover"] .allan { left: 40px; bottom: 96px; width: 320px; height: 436px; }
+.arale { position: absolute; left: 178px; bottom: 80px; width: 132px; height: 198px; z-index: 6; transition: all .8s cubic-bezier(.2, .8, .2, 1); }
+#stage[data-type="cover"] .arale { left: 340px; bottom: 96px; width: 200px; height: 300px; }
+.arale svg { width: 100%; height: 100%; overflow: visible; }
+.arale.talking svg { animation: hop .5s ease-in-out infinite; }
+.arale .head { animation: bob 2.2s ease-in-out infinite; transform-box: view-box; }
+.arale .eyes { transform-box: fill-box; transform-origin: center; animation: blink 3.6s infinite; }
+.arale .arm { transform-box: view-box; transform-origin: 104px 146px; transition: transform .4s cubic-bezier(.3, 1.4, .5, 1); }
+.arale.talking .arm { transform: rotate(-125deg); }
+.arale .mo { transform-box: fill-box; transform-origin: 50% 0; }
+@keyframes hop { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
 .allan svg { width: 100%; height: 100%; overflow: visible; }
 .allan #head { animation: bob 2.6s ease-in-out infinite; transform-box: view-box; }
 .allan.talking #head { animation: nod .5s ease-in-out infinite; }
@@ -99,7 +115,7 @@ body.record .dock, body.record .start-btn { display: none !important; }
 .cover { position: absolute; inset: 0; background:
   linear-gradient(90deg, rgba(68, 114, 196, .07) 1px, transparent 1px) 0 0 / 40px 40px,
   linear-gradient(rgba(68, 114, 196, .07) 1px, transparent 1px) 0 0 / 40px 40px, var(--paper); }
-.cover .txt { position: absolute; left: 470px; right: 60px; top: 120px; }
+.cover .txt { position: absolute; left: 570px; right: 60px; top: 120px; }
 .cover .txt .eyebrow { font-size: 15px; }
 .cover h2 { margin: 18px 0 10px; font: 900 76px/1.05 var(--display); letter-spacing: .03em; color: var(--ink); }
 .cover h2 span { color: var(--band); }
@@ -110,7 +126,7 @@ body.record .dock, body.record .start-btn { display: none !important; }
 .facet.ops { background: var(--ops-bg); color: var(--ops); }
 .facet.audit { background: var(--audit-bg); color: var(--audit); }
 .facet.faults { background: var(--fault-bg); color: var(--fault); }
-.cover .loop { position: absolute; left: 470px; right: 60px; bottom: 40px; display: flex; align-items: center; gap: 10px; font: 700 16px/1 var(--body); color: var(--ink); }
+.cover .loop { position: absolute; left: 570px; right: 60px; bottom: 40px; display: flex; align-items: center; gap: 10px; font: 700 16px/1 var(--body); color: var(--ink); }
 .cover .loop i { flex: 1; height: 8px; background: var(--band); border-radius: 4px; }
 .cover .loop b { width: 62px; height: 62px; border-radius: 50%; border: 6px solid var(--ring); background: var(--white); display: grid; place-items: center; font-size: 16px; }
 .start-btn { margin-top: 34px; display: inline-flex; align-items: center; gap: 12px; padding: 16px 30px; border: 0; border-radius: 999px; background: var(--ink); color: var(--white); font: 900 22px/1 var(--display); cursor: pointer; box-shadow: 0 8px 0 #0a1226; transition: transform .1s, box-shadow .1s; }
@@ -120,7 +136,7 @@ body.record .dock, body.record .start-btn { display: none !important; }
 .start-btn svg { width: 22px; height: 22px; }
 
 /* ── control table ── */
-.ctable { height: 100%; display: grid; grid-template-columns: 172px repeat(3, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: 1fr; gap: 10px; }
+.ctable { height: 100%; display: grid; grid-template-columns: 150px repeat(3, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: 1fr; gap: 10px; }
 .chead { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font: 900 17px/1 var(--display); color: var(--white); }
 .chead svg { width: 20px; height: 20px; flex: none; }
 .chead.blank { background: transparent; }
@@ -128,15 +144,15 @@ body.record .dock, body.record .start-btn { display: none !important; }
 .chead.audit { background: var(--audit); }
 .chead.faults { background: var(--fault); }
 .cid { display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--white); border: 2px solid var(--line); transition: border-color .4s, box-shadow .4s; min-width: 0; }
-.cid .num { font: 700 30px/1 var(--mono); color: var(--band); }
-.cid .nm { font: 900 18px/1.3 var(--display); color: var(--ink); text-wrap: balance; }
+.cid .num { font: 700 28px/1 var(--mono); color: var(--band); }
+.cid .nm { font: 900 17px/1.3 var(--display); color: var(--ink); text-wrap: balance; }
 .cid.live { border-color: var(--ring-deep); box-shadow: 0 0 0 4px rgba(159, 207, 136, .35); }
 .cell { position: relative; border-radius: 10px; padding: 12px 14px 12px 12px; min-width: 0; transition: opacity .5s, transform .5s cubic-bezier(.2, .9, .3, 1.2), box-shadow .4s, filter .5s; }
 .cell.ops { background: var(--ops-bg); }
 .cell.audit { background: var(--audit-bg); }
 .cell.faults { background: var(--fault-bg); }
 .cell ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
-.cell li { position: relative; padding-left: 16px; font: 500 15.5px/1.5 var(--body); color: var(--ink); }
+.cell li { position: relative; padding-left: 16px; font: 500 15px/1.5 var(--body); color: var(--ink); }
 .cell li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px; border-radius: 2px; }
 .cell.ops li::before { background: var(--ops); }
 .cell.audit li::before { background: var(--audit); }
@@ -194,6 +210,47 @@ body.record .dock, body.record .start-btn { display: none !important; }
 .bye b { color: var(--hl); }
 .bye.off { opacity: .1; transform: translateY(12px); }
 
+/* ── case ── */
+.case { height: 100%; display: flex; flex-direction: column; gap: 14px; }
+.case-head { display: flex; gap: 10px; align-items: center; }
+.ctag { padding: 7px 12px; border-radius: 6px; background: var(--ink); color: var(--white); font: 900 15px/1 var(--display); }
+.cctl { padding: 5px 10px; border: 2px solid var(--band); border-radius: 6px; color: var(--band); font: 700 14px/1 var(--mono); }
+.case h3 { margin: 0; font: 900 31px/1.25 var(--display); color: var(--ink); text-wrap: balance; }
+.panels { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.panel { position: relative; padding: 16px 16px 14px; border-radius: 12px; background: var(--white); border: 2px solid var(--line); border-top: 6px solid var(--band); transition: opacity .5s, transform .5s cubic-bezier(.2, .9, .3, 1.2), box-shadow .4s; }
+.panel.p1 { border-top-color: var(--fault); }
+.panel.p2 { border-top-color: var(--amber); }
+.panel.p3 { border-top-color: var(--good); background: var(--good-bg); }
+.panel:not(:last-child)::after { content: ""; position: absolute; right: -15px; top: 50%; border: 7px solid transparent; border-left: 9px solid var(--muted); transform: translateY(-50%); }
+.pk { display: flex; align-items: center; gap: 8px; font: 900 19px/1 var(--display); color: var(--ink); }
+.pk b { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--band); color: var(--white); font: 700 14px/1 var(--mono); }
+.panel.p1 .pk b { background: var(--fault); }
+.panel.p2 .pk b { background: var(--amber); }
+.panel.p3 .pk b { background: var(--good); }
+.panel p { margin: 14px 0 0; font: 500 19.5px/1.7 var(--body); color: var(--ink); }
+.panel.off { opacity: .12; transform: translateY(10px); }
+.panel.now { box-shadow: 0 0 0 3px var(--hl), 0 10px 24px rgba(26, 38, 67, .16); transform: scale(1.02); }
+.tip { display: flex; align-items: center; gap: 12px; padding: 13px 18px; border-radius: 12px; background: var(--ink); color: var(--paper); font: 700 18px/1.5 var(--body); transition: opacity .5s; }
+.tip .tl { flex: none; padding: 5px 10px; border-radius: 6px; background: var(--hl); color: var(--ink); font: 900 14px/1 var(--display); }
+.tip.off { opacity: .1; }
+.note { margin-top: -6px; font: 500 12px/1 var(--body); color: var(--muted); text-align: right; }
+
+/* ── quiz ── */
+.quiz { height: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.qz { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 14px; background: var(--white); border: 2px solid var(--line); transition: opacity .5s, transform .5s cubic-bezier(.3, 1.4, .5, 1), box-shadow .4s; }
+.qz.off { opacity: .12; transform: translateY(12px) scale(.97); }
+.qz.now { box-shadow: 0 0 0 3px var(--hl), 0 10px 24px rgba(26, 38, 67, .16); }
+.qn { align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: var(--pink); color: var(--white); font: 700 16px/1 var(--mono); }
+.qq { font: 900 21px/1.45 var(--display); color: var(--ink); }
+.opts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.opts li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--line); font: 500 16px/1.45 var(--body); color: var(--ink); transition: all .4s; }
+.opts li b { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--paper); border: 2px solid var(--line); font: 700 13px/1 var(--mono); }
+.qz.ans .opts li.right { border-color: var(--good); background: var(--good-bg); font-weight: 700; }
+.qz.ans .opts li.right b { background: var(--good); border-color: var(--good); color: var(--white); }
+.qz.ans .opts li:not(.right) { opacity: .45; }
+.why { margin-top: auto; font: 700 15px/1.5 var(--body); color: var(--good); opacity: 0; transition: opacity .4s .2s; }
+.qz.ans .why { opacity: 1; }
+
 /* ── dock (player controls, outside the stage) ── */
 .dock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .dock button { display: inline-flex; align-items: center; gap: 6px; height: 40px; min-width: 40px; padding: 0 12px; border: 1px solid #2e4170; border-radius: 10px; background: #172a52; color: #e8eef9; font: 700 14px/1 var(--body); cursor: pointer; }
@@ -224,10 +281,10 @@ body.record .dock, body.record .start-btn { display: none !important; }
         </header>
         <main id="content"></main>
         <div class="allan" id="allan" aria-hidden="true"></div>
-        <div class="bubble" id="bubble">大家好！</div>
+        <div class="arale" id="arale" aria-hidden="true"></div>
         <footer class="subs" id="subs">
-          <div class="who">ALLAN LO<small>ISMS / PIMS 講師</small></div>
-          <div id="subText" aria-live="polite">按下「開始上課」，Allan 老師會帶你走完資訊保護的生命週期。</div>
+          <div class="who" id="who">ALLAN LO<small>ISMS / PIMS 講師</small></div>
+          <div id="subText" aria-live="polite">按下「開始上課」，Allan 老師和助教阿拉蕾會帶你走完資訊保護的生命週期。</div>
         </footer>
       </div>
     </div>
@@ -312,18 +369,86 @@ allanEl.innerHTML = `
     </g>
   </g>
 </svg>`;
-const mouthOpen = $("mouthOpen"), mouthClosed = $("mouthClosed");
+/* ── 助教阿拉蕾（原創 Q 版造型） ── */
+const araleEl = $("arale");
+araleEl.innerHTML = `
+<svg viewBox="0 0 160 240">
+  <ellipse cx="80" cy="233" rx="46" ry="7" fill="#000" opacity=".16"/>
+  <rect x="61" y="194" width="15" height="32" rx="6" fill="#ffe0c8"/>
+  <rect x="85" y="194" width="15" height="32" rx="6" fill="#ffe0c8"/>
+  <rect x="61" y="210" width="15" height="14" fill="#fff"/>
+  <rect x="85" y="210" width="15" height="14" fill="#fff"/>
+  <ellipse cx="68" cy="228" rx="13" ry="7" fill="#e2465f"/>
+  <ellipse cx="93" cy="228" rx="13" ry="7" fill="#e2465f"/>
+  <path d="M46 205 Q48 150 66 137 L94 137 Q112 150 114 205 Q80 215 46 205Z" fill="#2fb3a2"/>
+  <path d="M66 137 L80 150 L94 137 Q80 144 66 137Z" fill="#fff"/>
+  <path d="M80 160 l11 4 v8 q0 9 -11 14 q-11 -5 -11 -14 v-8z" fill="#ffd34d" stroke="#1a2643" stroke-width="2"/>
+  <path d="M75 172 l4 4 l7 -8" stroke="#1a2643" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M57 147 Q41 162 46 182" stroke="#2fb3a2" stroke-width="13" fill="none" stroke-linecap="round"/>
+  <rect x="26" y="166" width="30" height="38" rx="3" fill="#a8743f"/>
+  <rect x="29" y="172" width="24" height="29" fill="#fff"/>
+  <path d="M33 180h16M33 187h16M33 194h10" stroke="#4472c4" stroke-width="2.2" stroke-linecap="round"/>
+  <rect x="35" y="163" width="12" height="6" rx="2" fill="#555"/>
+  <circle cx="47" cy="184" r="6.5" fill="#ffe0c8"/>
+  <g class="arm">
+    <path d="M104 146 Q120 160 116 180" stroke="#2fb3a2" stroke-width="13" fill="none" stroke-linecap="round"/>
+    <circle cx="116" cy="184" r="6.5" fill="#ffe0c8"/>
+  </g>
+  <rect x="72" y="124" width="16" height="16" rx="5" fill="#f5cfb2"/>
+  <g class="head">
+    <path d="M28 90 Q24 30 80 26 Q136 30 132 90 Q134 120 122 130 L38 130 Q26 120 28 90Z" fill="#6b3a24"/>
+    <ellipse cx="80" cy="84" rx="46" ry="43" fill="#ffe0c8"/>
+    <path d="M34 80 Q36 38 80 36 Q124 38 126 80 Q114 58 98 62 Q90 50 78 60 Q62 52 48 66 Q40 70 34 80Z" fill="#7d4529"/>
+    <path d="M30 84 Q30 20 80 20 Q130 20 130 84" stroke="#ff6f9a" stroke-width="6" fill="none"/>
+    <rect x="21" y="72" width="15" height="26" rx="7" fill="#ff6f9a"/>
+    <rect x="124" y="72" width="15" height="26" rx="7" fill="#ff6f9a"/>
+    <path d="M29 96 Q33 116 56 114" stroke="#1a2643" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <circle cx="58" cy="114" r="4" fill="#1a2643"/>
+    <path d="M110 46 l3 6 l6 1 l-4.5 4 l1 6 l-5.5 -3 l-5.5 3 l1 -6 l-4.5 -4 l6 -1z" fill="#ffd34d"/>
+    <g class="eyes">
+      <ellipse cx="63" cy="88" rx="7.5" ry="9.5" fill="#2a1d3a"/>
+      <ellipse cx="97" cy="88" rx="7.5" ry="9.5" fill="#2a1d3a"/>
+      <circle cx="66" cy="84" r="3" fill="#fff"/>
+      <circle cx="100" cy="84" r="3" fill="#fff"/>
+      <circle cx="60.5" cy="92" r="1.5" fill="#fff"/>
+      <circle cx="94.5" cy="92" r="1.5" fill="#fff"/>
+    </g>
+    <ellipse cx="51" cy="103" rx="7" ry="4" fill="#ff8fa8" opacity=".55"/>
+    <ellipse cx="109" cy="103" rx="7" ry="4" fill="#ff8fa8" opacity=".55"/>
+    <path class="mc" d="M72 106 Q80 113 88 106" stroke="#a33a3a" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <g class="mo" style="display:none">
+      <path d="M71 104 Q80 122 89 104Z" fill="#8a2a2a"/>
+      <ellipse cx="80" cy="114" rx="5" ry="3" fill="#ef7a8a"/>
+    </g>
+  </g>
+</svg>`;
+const CH = {
+  allan: { el: allanEl, mo: $("mouthOpen"), mc: $("mouthClosed") },
+  arale: { el: araleEl, mo: araleEl.querySelector(".mo"), mc: araleEl.querySelector(".mc") },
+};
+const WHO = { allan: 'ALLAN LO<small>ISMS / PIMS 講師</small>', arale: '阿拉蕾<small>助教</small>' };
+let speaker = "allan";
 let flapTimer = null;
 function setTalking(on) {
-  allanEl.classList.toggle("talking", on);
   clearInterval(flapTimer);
-  if (!on) { mouthOpen.style.display = "none"; mouthClosed.style.display = ""; return; }
+  for (const k in CH) {
+    CH[k].el.classList.remove("talking");
+    CH[k].mo.style.display = "none"; CH[k].mc.style.display = "";
+  }
+  if (!on) return;
+  const c = CH[speaker];
+  c.el.classList.add("talking");
   flapTimer = setInterval(() => {
     const open = Math.random() > 0.28;
-    mouthOpen.style.display = open ? "" : "none";
-    mouthClosed.style.display = open ? "none" : "";
-    mouthOpen.style.transform = `scaleY(${(0.35 + Math.random() * 0.65).toFixed(2)})`;
+    c.mo.style.display = open ? "" : "none";
+    c.mc.style.display = open ? "none" : "";
+    c.mo.style.transform = `scaleY(${(0.35 + Math.random() * 0.65).toFixed(2)})`;
   }, 115);
+}
+function setSpeaker(who) {
+  speaker = who || "allan";
+  $("who").innerHTML = WHO[speaker];
+  $("subs").dataset.who = speaker;
 }
 let pointTimer = null;
 function gesture() {
@@ -417,13 +542,34 @@ function renderSummary(s) {
   </div>`;
 }
 
-const RENDER = { cover: renderCover, controls: renderControls, lifecycle: renderLifecycle, trace: renderTrace, summary: renderSummary };
+function renderCase(s) {
+  const c = s.case;
+  return `<div class="case">
+    <div class="case-head"><span class="ctag">${esc(c.tag)}</span><span class="cctl">${esc(c.ctrls)}</span></div>
+    <h3>${esc(c.title)}</h3>
+    <div class="panels">${c.panels.map((p, i) => `<div class="panel p${i}" data-p="${i}"><div class="pk"><b>${i + 1}</b>${esc(p.k)}</div><p>${esc(p.t)}</p></div>`).join("")}</div>
+    <div class="tip"><span class="tl">稽核小叮嚀</span>${esc(c.tip)}</div>
+    <div class="note">＊情境為教學改編示例，非特定公司的實際事件。</div>
+  </div>`;
+}
+
+function renderQuiz(s) {
+  return `<div class="quiz">${s.quiz.map((q, i) => `<div class="qz" data-q="${i}">
+    <div class="qn">Q${i + 1}</div>
+    <div class="qq">${esc(q.q)}</div>
+    <ol class="opts">${q.opts.map((o, j) => `<li class="${j === q.ans ? "right" : ""}"><b>${"ABCD"[j]}</b><span>${esc(o)}</span></li>`).join("")}</ol>
+    <div class="why">✔ ${esc(q.why)}</div>
+  </div>`).join("")}</div>`;
+}
+
+const RENDER = { case: renderCase, quiz: renderQuiz, cover: renderCover, controls: renderControls, lifecycle: renderLifecycle, trace: renderTrace, summary: renderSummary };
 
 /* ── state per slide: apply acts 0..upto (upto = Infinity → fully revealed, no focus) ── */
 function applyState(s, upto) {
   const acts = s.segs.map((g) => g.act || "");
   const done = upto === Infinity ? acts : acts.slice(0, upto + 1);
-  const cur = upto === Infinity ? null : acts[upto];
+  let cur = null;
+  if (upto !== Infinity) for (let k = upto; k >= 0; k--) if (acts[k]) { cur = acts[k]; break; }
   if (s.type === "controls") {
     content.querySelectorAll(".cell").forEach((c) => {
       const key = "cell:" + c.dataset.cell;
@@ -450,6 +596,20 @@ function applyState(s, upto) {
       el.classList.toggle("now", i === curStep);
     });
     moveToken(n);
+  } else if (s.type === "case") {
+    content.querySelectorAll(".panel").forEach((p) => {
+      const key = "case:" + p.dataset.p;
+      p.classList.toggle("off", !done.includes(key));
+      p.classList.toggle("now", key === cur);
+    });
+    content.querySelector(".tip").classList.toggle("off", !done.includes("tip"));
+  } else if (s.type === "quiz") {
+    content.querySelectorAll(".qz").forEach((q) => {
+      const i = q.dataset.q;
+      q.classList.toggle("off", !done.includes("q:" + i));
+      q.classList.toggle("ans", done.includes("ans:" + i));
+      q.classList.toggle("now", cur === "q:" + i || cur === "ans:" + i);
+    });
   } else if (s.type === "summary") {
     content.querySelectorAll(".mt").forEach((m) => { m.classList.toggle("off", !done.includes("mantra")); m.classList.toggle("on", done.includes("mantra")); });
     content.querySelector(".bye").classList.toggle("off", !done.includes("bye"));
@@ -500,8 +660,8 @@ function tickSubs() {
 function playSeg() {
   const s = DATA.slides[si], seg = s.segs[gi];
   applyState(s, gi);
-  if (s.type !== "cover") gesture();
-  $("bubble").classList.toggle("show", s.type === "cover" && gi === 0);
+  setSpeaker(seg.who);
+  if (s.type !== "cover" && speaker === "allan" && seg.act) gesture();
   setSub(seg.cues[0] ? seg.cues[0][1] : seg.say);
   cancelAnimationFrame(rafId);
   if (RECORD) {

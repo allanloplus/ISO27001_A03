@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""產生旁白語音（台灣男聲）並組出 index.html。
+"""產生旁白語音（講師：台灣男聲；助教：台灣女聲）並組出 index.html。
 
 用法：
     pip install edge-tts
@@ -61,8 +61,8 @@ def duration(path: str) -> float:
     return float(out.stdout.strip())
 
 
-async def synth(text, voice, rate, path):
-    comm = edge_tts.Communicate(text, voice, rate=rate)
+async def synth(text, v, path):
+    comm = edge_tts.Communicate(text, v["voice"], rate=v["rate"], pitch=v.get("pitch", "+0Hz"))
     marks = []
     with open(path, "wb") as f:
         async for chunk in comm.stream():
@@ -91,13 +91,14 @@ async def main(force: bool):
             path = os.path.join(AUDIO_DIR, name)
             used.add(name)
             say = spoken(seg["say"])
-            key = hashlib.sha1(f"{meta['voice']}|{meta['rate']}|{say}".encode()).hexdigest()
+            v = meta["voices"][seg.get("who", "allan")]
+            key = hashlib.sha1(f"{v['voice']}|{v['rate']}|{v.get('pitch')}|{say}".encode()).hexdigest()
             hit = cache.get(name)
             if not (hit and hit["key"] == key and os.path.exists(path)):
                 print("TTS", name, seg["say"][:24], flush=True)
                 for attempt in range(4):
                     try:
-                        marks = await synth(say, meta["voice"], meta["rate"], path)
+                        marks = await synth(say, v, path)
                         break
                     except Exception as e:  # 網路不穩時重試
                         print("  retry", attempt + 1, e)
