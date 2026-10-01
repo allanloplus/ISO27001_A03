@@ -56,8 +56,8 @@ const TMP = fs.mkdtempSync(path.join(require("os").tmpdir(), "rec-"));
     "-ss", String(blackEnd), "-i", webm, ...inputs,
     "-filter_complex", filters.join(";") + ";" + mix,
     "-map", "0:v", "-map", "[aout]",
-    "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p", "-r", "25",
-    "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", OUT,
+    "-c:v", "libx264", "-preset", "slow", "-crf", "30", "-tune", "animation", "-pix_fmt", "yuv420p", "-r", "20",
+    "-c:a", "aac", "-b:a", "64k", "-ac", "1", "-movflags", "+faststart", OUT,
   ], { stdio: "inherit" });
   fs.rmSync(TMP, { recursive: true, force: true });
   console.log("saved", OUT);
