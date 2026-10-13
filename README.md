@@ -4,6 +4,7 @@
 沿資訊生命週期（政策制定 → 產生／收集 → 使用 → 儲存／存取 → 銷毀），
 從 **ISMS 作業重點**、**稽核查核重點**、**常見缺失** 三個面向講解，並穿插 5 個管理實務案例與隨堂小測驗。
 由 Q 版 Allan Lo 講師（台灣男聲 `zh-TW-YunJheNeural`）與助教阿拉蕾（台灣女聲 `zh-TW-HsiaoYuNeural`）以對話方式串場，搭配同步字幕。
+角色依 `characters/` 的人物設定圖製作：說話時嘴巴開合、聽的一方會依台詞換表情（思考、驚訝、大笑、眨眼等）。
 
 ## 檔案
 
@@ -12,7 +13,10 @@
 | `index.html` | 動畫簡報播放器（瀏覽器直接開啟，搭配 `audio/` 資料夾） |
 | `video/ISO27001_資訊保護生命週期.mp4` | 已錄製好的完整教學影片（約 21 分鐘，1280×720） |
 | `content.json` | **課程內容與講稿**（投影片文字、旁白，修改這裡即可） |
-| `template.html` | 版面、動畫與 Q 版講師 SVG |
+| `template.html` | 版面、動畫與角色表情切換邏輯 |
+| `characters/` | 講師與助教的人物設定圖（原始素材） |
+| `img/` | 由設定圖切出的角色表情（WebP，共 20 張） |
+| `tools/make_sprites.py` | 從設定圖裁切、去背、製作嘴形並輸出 `img/` |
 | `build.py` | 產生旁白語音（含字幕時間軸），並組出 `index.html` |
 | `video/chapters.json`、`video/youtube_chapters.txt` | 影片章節時間（後者可直接貼到 YouTube 說明欄） |
 | `tools/record_video.cjs` | 以 Playwright 自動播放並錄成 MP4（含章節標記） |
@@ -69,6 +73,7 @@ MP4 已內嵌 17 個章節（每頁一個），VLC、PotPlayer、IINA、QuickTim
 
 ```bash
 pip install edge-tts
+python3 tools/make_sprites.py         # 更換人物設定圖後才需要
 python3 build.py                     # 只重新合成有變動的段落
 node tools/record_video.cjs          # 需要 playwright 與 ffmpeg，重新錄製 MP4
 ```

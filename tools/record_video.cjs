@@ -23,6 +23,7 @@ const TMP = fs.mkdtempSync(path.join(require("os").tmpdir(), "rec-"));
   });
   await page.goto("file://" + path.join(ROOT, "index.html") + "#record");
   await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => [...document.images].every((i) => i.complete && i.naturalWidth > 0));
   await page.waitForTimeout(2500);
   await page.evaluate(() => window.__startRecord());
   const t0 = await page.evaluate(() => window.__t0);
