@@ -56,6 +56,10 @@ body {
 body.record .app { padding: 0; }
 body.record #stage { border-radius: 0; box-shadow: none; }
 #curtain { position: fixed; inset: 0; background: #000; z-index: 99; }
+/* 錄影用的段落編號碼（錄完後會從影片中抹除） */
+#reccode { position: absolute; right: 8px; bottom: 4px; z-index: 50; display: flex; gap: 2px; }
+#reccode i { width: 8px; height: 8px; background: #000; }
+#reccode i.b { background: #fff; }
 body.record .chapters, body.record .chap-scrim,
 body.record .dock, body.record .start-btn { display: none !important; }
 
@@ -595,6 +599,7 @@ function moveToken(n) {
 }
 
 /* ── player ── */
+function recCode(n) { if (window.recCode && window.recCode !== recCode) window.recCode(n); }
 let si = 0, gi = -1, playing = false, segTimer = null, gapTimer = null, segStart = 0, rafId = 0;
 const audio = new Audio();
 audio.preload = "auto";
@@ -638,6 +643,7 @@ function playSeg() {
   cancelAnimationFrame(rafId);
   if (RECORD) {
     window.__log.push({ audio: seg.audio, t: Date.now() });
+    recCode(window.__log.length);
     segStart = performance.now();
     setTalking(true);
     segTimer = setTimeout(onSegEnd, seg.dur * 1000);
@@ -674,7 +680,7 @@ function onSegEnd() {
     playing = false;
     updatePlayBtn();
     applyState(s, Infinity);
-    if (RECORD) gapTimer = setTimeout(() => { window.__done = true; }, 1500);
+    if (RECORD) { window.__log.push({ audio: null, t: Date.now() }); recCode(255); gapTimer = setTimeout(() => { window.__done = true; }, 1500); }
   }
 }
 
@@ -800,6 +806,8 @@ fit();
 if (RECORD) {
   window.__log = [];
   const cur = document.createElement("div"); cur.id = "curtain"; document.body.appendChild(cur);
+  const rc = document.createElement("div"); rc.id = "reccode"; rc.innerHTML = "<i></i>".repeat(8); stage.appendChild(rc);
+  window.recCode = (n) => [...rc.children].forEach((b, k) => b.classList.toggle("b", ((n >> k) & 1) === 1));
   window.__startRecord = () => { cur.remove(); window.__t0 = Date.now(); playing = true; gi = 0; gapTimer = setTimeout(playSeg, 1200); };
 }
 </script>
